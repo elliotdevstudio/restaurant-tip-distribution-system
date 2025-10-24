@@ -75,9 +75,10 @@ export default function StaffGroupsPage() {
     }
 
     try {
-      console.log(`📤 Making PUT request to /api/staff/groups?id=${editingGroup.id}`);
+      // ✨ UPDATED: REST-style URL with path parameter
+      console.log(`📤 Making PUT request to /api/staff/groups/${editingGroup.id}`);
       
-      const response = await fetch(`/api/staff/groups?id=${editingGroup.id}`, {
+      const response = await fetch(`/api/staff/groups/${editingGroup.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
@@ -123,7 +124,8 @@ export default function StaffGroupsPage() {
     }
 
     try {
-      const response = await fetch(`/api/staff/groups?id=${groupId}`, {
+      // ✨ UPDATED: REST-style URL with path parameter
+      const response = await fetch(`/api/staff/groups/${groupId}`, {
         method: 'DELETE'
       });
 
@@ -225,6 +227,10 @@ export default function StaffGroupsPage() {
                       <div className="mt-2 text-sm text-gray-500">
                         {group.staffMemberIds.length} staff members • {' '}
                         {group.gratuityConfig.distributesGratuities ? 'Distributes' : 'Receives'} gratuities
+                        {/* ✨ NEW: Show contribution source for distributor groups */}
+                        {group.gratuityConfig.distributesGratuities && group.gratuityConfig.contributionSource && (
+                          <> • {group.gratuityConfig.contributionSource === 'sales' ? 'Based on Sales' : 'Based on Tips'}</>
+                        )}
                       </div>
                     </div>
                     <div className="flex space-x-2">
@@ -280,6 +286,19 @@ export default function StaffGroupsPage() {
                               {group.gratuityConfig.distributesGratuities ? 'Distributes Gratuities' : 'Receives Gratuities'}
                             </span>
                           </div>
+
+                          {/* ✨ NEW: Show contribution source for distributor groups */}
+                          {group.gratuityConfig.distributesGratuities && group.gratuityConfig.contributionSource && (
+                            <div className="text-sm">
+                              <span className="font-medium">Contribution Source:</span>{' '}
+                              <span className="text-blue-900">
+                                {group.gratuityConfig.contributionSource === 'sales' 
+                                  ? 'Percentage of Sales'
+                                  : 'Total Gratuities Collected (CC + Cash)'
+                                }
+                              </span>
+                            </div>
+                          )}
 
                           {/* Show distribution method for receiver groups */}
                           {!group.gratuityConfig.distributesGratuities && group.gratuityConfig.distributionType && (

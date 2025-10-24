@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { StaffService } from '../../../lib/services/staffService';
 import { CreateStaffGroupRequest, CreateStaffGroupResponse } from '../../../../types';
 
-// SEARCH ALL 
+// GET ALL 
 export async function GET() {
   try {
     const groups = await StaffService.getAllStaffGroups();
@@ -52,72 +52,6 @@ export async function POST(request: NextRequest) {
       { 
         success: false, 
         message: 'Internal server error' 
-      },
-      { status: 500 }
-    );
-  }
-}
-// UPDATE
-export async function PUT(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const groupId = searchParams.get('id');
-    
-    if (!groupId) {
-      return NextResponse.json(
-        { success: false, message: 'Group ID is required' },
-        { status: 400 }
-      );
-    }
-
-    const updates = await request.json();
-    console.log('📨 Received group update request:', { groupId, updates });
-
-    const updatedGroup = await StaffService.updateStaffGroup(groupId, updates);
-
-    return NextResponse.json({
-      group: updatedGroup,
-      success: true,
-      message: 'Group updated successfully'
-    });
-
-  } catch (error) {
-    console.error('Error updating staff group:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Failed to update group'
-      },
-      { status: 500 }
-    );
-  }
-}
-// DELETE
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const groupId = searchParams.get('id');
-    
-    if (!groupId) {
-      return NextResponse.json(
-        { success: false, message: 'Group ID is required' },
-        { status: 400 }
-      );
-    }
-
-    await StaffService.deleteStaffGroup(groupId);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Group deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Error deleting staff group:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Failed to delete group'
       },
       { status: 500 }
     );

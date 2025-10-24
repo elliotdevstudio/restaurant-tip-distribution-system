@@ -10,7 +10,14 @@ import {
   StaffGroupWithId, 
   transformStaffGroup 
 } from '../models/StaffGroup';
-import { CreateStaffGroupRequest } from '../../../types';
+import { CreateStaffGroupRequest, ShiftType } from '../../../types';
+import {
+  StaffShiftData,
+  GroupShiftSummary,
+  DailyShiftDocument,
+  DailyShiftWithId,
+  transformDailyShift
+} from '../models/DailyShift'
 
 export class StaffService {
   private static async getDb() {
@@ -47,27 +54,505 @@ export class StaffService {
     return groups.map(transformStaffGroup);
   }
 
-  static async createStaffMember(firstName: string, lastName: string): Promise<StaffMemberWithId> {
-    console.log(`📝 Creating staff member: ${firstName} ${lastName}`);
-    const db = await this.getDb();
-    
-    const memberDoc: StaffMemberDocument = {
-      firstName,
-      lastName,
-      dateCreated: new Date()
-    };
+  // DAILY SHIFT METHODS (Replaces previous shift/assignment/tip methods)
+// ============================================
 
-    const result = await db.collection<StaffMemberDocument>('staff_members').insertOne(memberDoc);
-    const createdMember = await db.collection<StaffMemberDocument>('staff_members')
-      .findOne({ _id: result.insertedId });
-    
-    if (!createdMember) {
-      throw new Error('Failed to create staff member');
-    }
-
-    console.log('✅ Successfully created staff member');
-    return transformStaffMember(createdMember);
+static async createDailyShift(date: Date, type: ShiftType): Promise<DailyShiftWithId> {
+  console.log(`📅 Creating daily shift: ${type} on ${date.toISOString()}`);
+  const db = await this.getDb();
+  
+  // Normalize date to midnight UTC
+  const normalizedDate = new Date(date.setHours(0, 0, 0, 0));
+  
+  // Check if shift already exists
+  const existing = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ 
+      date: normalizedDate,
+      type
+    });
+  
+  if (existing) {
+    console.log('⚠️ Shift already exists for this date/type');
+    return transformDailyShift(existing);
   }
+  
+  const shiftDoc: DailyShiftDocument = {
+    date: normalizedDate,
+    type,
+    status: 'draft',
+    staffData: [],
+    groupSummaries: [],
+    shiftTotals: {
+      totalTipsCollected: 0,
+      totalDistributed: 0,
+      totalKeptByDistributors: 0,
+      totalReceivedByRecipients: 0,
+      totalHoursWorked: 0,
+      activeStaffCount: 0,
+      activeGroupCount: 0
+    },
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  const result = await db.collection<DailyShiftDocument>('daily_shifts')
+    .insertOne(shiftDoc);
+  
+  const created = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ _id: result.insertedId });
+  
+  if (!created) {
+    throw new Error('Failed to create daily shift');
+  }
+
+  console.log('✅ Successfully created daily shift');
+  return transformDailyShift(created);
+}
+
+static async getDailyShift(date: Date, type: ShiftType): Promise<DailyShiftWithId | null> {
+  console.log(`🔍 Fetching daily shift: ${type} on ${date.toISOString()}`);
+  const db = await this.getDb();
+  
+  const normalizedDate = new Date(date.setHours(0, 0, 0, 0));
+  
+  const shift = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ date: normalizedDate, type });
+  
+  if (!shift) {
+    console.log('❌ Daily shift not found');
+    return null;
+  }
+  
+  return transformDailyShift(shift);
+}
+
+static async getDailyShiftById(shiftId: string): Promise<DailyShiftWithId | null> {
+  console.log('🔍 Fetching daily shift by ID:', shiftId);
+  const db = await this.getDb();
+  
+  const shift = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ _id: new ObjectId(shiftId) });
+  
+  if (!shift) {
+    console.log('❌ Daily shift not found');
+    return null;
+  }
+  
+  return transformDailyShift(shift);
+}
+
+static async getDailyShiftsByDateRange(
+  startDate: Date,
+  endDate: Date,
+  type?: ShiftType
+): Promise<DailyShiftWithId[]> {
+  console.log('📋 Fetching daily shifts by date range');
+  const db = await this.getDb();
+  
+  const query: any = {
+    date: {
+      $gte: new Date(startDate.setHours(0, 0, 0, 0)),
+      $lte: new Date(endDate.setHours(23, 59, 59, 999))
+    }
+  };
+  
+  if (type) {
+    query.type = type;
+  }
+  
+  const shifts = await db.collection<DailyShiftDocument>('daily_shifts')
+    .find(query)
+    .sort({ date: -1, type: 1 })
+    .toArray();
+  
+  console.log(`✅ Found ${shifts.length} daily shifts in range`);
+  return shifts.map(transformDailyShift);
+}
+
+static async updateDailyShiftStaffData(
+  shiftId: string,
+  staffData: Array<{
+    staffId: string;
+    firstName: string;
+    lastName: string;
+    groupId: string;
+    groupName: string;
+    hoursWorked: number;
+    salesAmount?: number;
+    creditCardTips?: number;
+    cashTips?: number;
+    totalTipsCollected?: number;
+    contributionAmount?: number;
+    netTipAmount?: number;
+    receivedAmount?: number;
+    sourceGroupIds?: string[];
+  }>
+): Promise<DailyShiftWithId> {
+  console.log('📝 Updating daily shift staff data');
+  const db = await this.getDb();
+  
+  // Convert to MongoDB format
+  const staffDataDoc: StaffShiftData[] = staffData.map(staff => ({
+    staffId: new ObjectId(staff.staffId),
+    firstName: staff.firstName,
+    lastName: staff.lastName,
+    groupId: new ObjectId(staff.groupId),
+    groupName: staff.groupName,
+    hoursWorked: staff.hoursWorked,
+    salesAmount: staff.salesAmount,
+    creditCardTips: staff.creditCardTips,
+    cashTips: staff.cashTips,
+    totalTipsCollected: staff.totalTipsCollected,
+    contributionAmount: staff.contributionAmount,
+    netTipAmount: staff.netTipAmount,
+    receivedAmount: staff.receivedAmount,
+    sourceGroupIds: staff.sourceGroupIds?.map(id => new ObjectId(id))
+  }));
+  
+  const result = await db.collection<DailyShiftDocument>('daily_shifts')
+    .updateOne(
+      { _id: new ObjectId(shiftId) },
+      { 
+        $set: { 
+          staffData: staffDataDoc,
+          updatedAt: new Date()
+        } 
+      }
+    );
+  
+  if (result.matchedCount === 0) {
+    throw new Error('Daily shift not found');
+  }
+  
+  const updated = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ _id: new ObjectId(shiftId) });
+  
+  if (!updated) {
+    throw new Error('Failed to retrieve updated daily shift');
+  }
+
+  console.log('✅ Successfully updated staff data');
+  return transformDailyShift(updated);
+}
+
+static async updateDailyShiftGroupSummaries(
+  shiftId: string,
+  groupSummaries: Array<{
+    groupId: string;
+    groupName: string;
+    distributesGratuities: boolean;
+    contributionSource?: 'sales' | 'gratuities';
+    activeStaffIds: string[];
+    totalHours: number;
+    totalCollected?: number;
+    totalDistributed?: number;
+    totalKept?: number;
+    totalReceived?: number;
+    averageHourlyRate?: number;
+  }>
+): Promise<DailyShiftWithId> {
+  console.log('📝 Updating daily shift group summaries');
+  const db = await this.getDb();
+  
+  // Convert to MongoDB format
+  const groupSummariesDoc: GroupShiftSummary[] = groupSummaries.map(group => ({
+    groupId: new ObjectId(group.groupId),
+    groupName: group.groupName,
+    distributesGratuities: group.distributesGratuities,
+    contributionSource: group.contributionSource,
+    activeStaffIds: group.activeStaffIds.map(id => new ObjectId(id)),
+    totalHours: group.totalHours,
+    totalCollected: group.totalCollected,
+    totalDistributed: group.totalDistributed,
+    totalKept: group.totalKept,
+    totalReceived: group.totalReceived,
+    averageHourlyRate: group.averageHourlyRate
+  }));
+  
+  const result = await db.collection<DailyShiftDocument>('daily_shifts')
+    .updateOne(
+      { _id: new ObjectId(shiftId) },
+      { 
+        $set: { 
+          groupSummaries: groupSummariesDoc,
+          updatedAt: new Date()
+        } 
+      }
+    );
+  
+  if (result.matchedCount === 0) {
+    throw new Error('Daily shift not found');
+  }
+  
+  const updated = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ _id: new ObjectId(shiftId) });
+  
+  if (!updated) {
+    throw new Error('Failed to retrieve updated daily shift');
+  }
+
+  console.log('✅ Successfully updated group summaries');
+  return transformDailyShift(updated);
+}
+
+static async updateDailyShiftTotals(
+  shiftId: string,
+  totals: {
+    totalTipsCollected: number;
+    totalDistributed: number;
+    totalKeptByDistributors: number;
+    totalReceivedByRecipients: number;
+    totalHoursWorked: number;
+    activeStaffCount: number;
+    activeGroupCount: number;
+  }
+): Promise<DailyShiftWithId> {
+  console.log('📝 Updating daily shift totals');
+  const db = await this.getDb();
+  
+  const result = await db.collection<DailyShiftDocument>('daily_shifts')
+    .updateOne(
+      { _id: new ObjectId(shiftId) },
+      { 
+        $set: { 
+          shiftTotals: totals,
+          updatedAt: new Date()
+        } 
+      }
+    );
+  
+  if (result.matchedCount === 0) {
+    throw new Error('Daily shift not found');
+  }
+  
+  const updated = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ _id: new ObjectId(shiftId) });
+  
+  if (!updated) {
+    throw new Error('Failed to retrieve updated daily shift');
+  }
+
+  console.log('✅ Successfully updated shift totals');
+  return transformDailyShift(updated);
+}
+
+static async saveCompleteDailyShift(
+  shiftId: string,
+  data: {
+    staffData: DailyShiftWithId['staffData'];
+    groupSummaries: DailyShiftWithId['groupSummaries'];
+    shiftTotals: DailyShiftWithId['shiftTotals'];
+  }
+): Promise<DailyShiftWithId> {
+  console.log('💾 Saving complete daily shift data');
+  const db = await this.getDb();
+  
+  // Convert to MongoDB format
+  const staffDataDoc: StaffShiftData[] = data.staffData.map(staff => ({
+    staffId: new ObjectId(staff.staffId),
+    firstName: staff.firstName,
+    lastName: staff.lastName,
+    groupId: new ObjectId(staff.groupId),
+    groupName: staff.groupName,
+    hoursWorked: staff.hoursWorked,
+    salesAmount: staff.salesAmount,
+    creditCardTips: staff.creditCardTips,
+    cashTips: staff.cashTips,
+    totalTipsCollected: staff.totalTipsCollected,
+    contributionAmount: staff.contributionAmount,
+    netTipAmount: staff.netTipAmount,
+    receivedAmount: staff.receivedAmount,
+    sourceGroupIds: staff.sourceGroupIds?.map(id => new ObjectId(id))
+  }));
+  
+  const groupSummariesDoc: GroupShiftSummary[] = data.groupSummaries.map(group => ({
+    groupId: new ObjectId(group.groupId),
+    groupName: group.groupName,
+    distributesGratuities: group.distributesGratuities,
+    contributionSource: group.contributionSource,
+    activeStaffIds: group.activeStaffIds.map(id => new ObjectId(id)),
+    totalHours: group.totalHours,
+    totalCollected: group.totalCollected,
+    totalDistributed: group.totalDistributed,
+    totalKept: group.totalKept,
+    totalReceived: group.totalReceived,
+    averageHourlyRate: group.averageHourlyRate
+  }));
+  
+  const result = await db.collection<DailyShiftDocument>('daily_shifts')
+    .updateOne(
+      { _id: new ObjectId(shiftId) },
+      { 
+        $set: { 
+          staffData: staffDataDoc,
+          groupSummaries: groupSummariesDoc,
+          shiftTotals: data.shiftTotals,
+          updatedAt: new Date()
+        } 
+      }
+    );
+  
+  if (result.matchedCount === 0) {
+    throw new Error('Daily shift not found');
+  }
+  
+  const updated = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ _id: new ObjectId(shiftId) });
+  
+  if (!updated) {
+    throw new Error('Failed to retrieve updated daily shift');
+  }
+
+  console.log('✅ Successfully saved complete daily shift');
+  return transformDailyShift(updated);
+}
+
+static async closeDailyShift(shiftId: string): Promise<DailyShiftWithId> {
+  console.log('🔒 Closing daily shift');
+  const db = await this.getDb();
+  
+  const result = await db.collection<DailyShiftDocument>('daily_shifts')
+    .updateOne(
+      { _id: new ObjectId(shiftId) },
+      { 
+        $set: { 
+          status: 'closed',
+          closedAt: new Date(),
+          updatedAt: new Date()
+        } 
+      }
+    );
+  
+  if (result.matchedCount === 0) {
+    throw new Error('Daily shift not found');
+  }
+  
+  const updated = await db.collection<DailyShiftDocument>('daily_shifts')
+    .findOne({ _id: new ObjectId(shiftId) });
+  
+  if (!updated) {
+    throw new Error('Failed to retrieve updated daily shift');
+  }
+
+  console.log('✅ Successfully closed daily shift');
+  return transformDailyShift(updated);
+}
+
+static async deleteDailyShift(shiftId: string): Promise<void> {
+  console.log('🗑️ Deleting daily shift:', shiftId);
+  const db = await this.getDb();
+  
+  const result = await db.collection('daily_shifts').deleteOne({ 
+    _id: new ObjectId(shiftId) 
+  });
+  
+  if (result.deletedCount === 0) {
+    throw new Error('Daily shift not found or already deleted');
+  }
+  
+  console.log('✅ Successfully deleted daily shift');
+}
+
+// ============================================
+// REPORTING / ANALYTICS METHODS
+// ============================================
+
+static async getStaffMemberShiftHistory(
+  staffId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<Array<{
+  date: Date;
+  type: ShiftType;
+  groupName: string;
+  hoursWorked: number;
+  earned: number; // netTipAmount or receivedAmount
+}>> {
+  console.log('📊 Fetching staff member shift history');
+  const db = await this.getDb();
+  
+  const shifts = await db.collection<DailyShiftDocument>('daily_shifts')
+    .find({
+      date: {
+        $gte: new Date(startDate.setHours(0, 0, 0, 0)),
+        $lte: new Date(endDate.setHours(23, 59, 59, 999))
+      },
+      'staffData.staffId': new ObjectId(staffId)
+    })
+    .sort({ date: -1 })
+    .toArray();
+  
+  const history = shifts.flatMap(shift => {
+    const staffEntry = shift.staffData.find(s => s.staffId.toString() === staffId);
+    if (!staffEntry) return [];
+    
+    return [{
+      date: shift.date,
+      type: shift.type,
+      groupName: staffEntry.groupName,
+      hoursWorked: staffEntry.hoursWorked,
+      earned: staffEntry.netTipAmount || staffEntry.receivedAmount || 0
+    }];
+  });
+  
+  console.log(`✅ Found ${history.length} shifts for staff member`);
+  return history;
+}
+
+static async getGroupPerformanceReport(
+  groupId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<{
+  totalShifts: number;
+  totalHours: number;
+  totalCollected?: number;
+  totalDistributed?: number;
+  totalReceived?: number;
+  averagePerShift: number;
+}> {
+  console.log('📊 Generating group performance report');
+  const db = await this.getDb();
+  
+  const shifts = await db.collection<DailyShiftDocument>('daily_shifts')
+    .find({
+      date: {
+        $gte: new Date(startDate.setHours(0, 0, 0, 0)),
+        $lte: new Date(endDate.setHours(23, 59, 59, 999))
+      },
+      'groupSummaries.groupId': new ObjectId(groupId)
+    })
+    .toArray();
+  
+  let totalHours = 0;
+  let totalCollected = 0;
+  let totalDistributed = 0;
+  let totalReceived = 0;
+  
+  shifts.forEach(shift => {
+    const groupSummary = shift.groupSummaries.find(g => g.groupId.toString() === groupId);
+    if (groupSummary) {
+      totalHours += groupSummary.totalHours;
+      totalCollected += groupSummary.totalCollected || 0;
+      totalDistributed += groupSummary.totalDistributed || 0;
+      totalReceived += groupSummary.totalReceived || 0;
+    }
+  });
+  
+  const report = {
+    totalShifts: shifts.length,
+    totalHours,
+    totalCollected: totalCollected > 0 ? totalCollected : undefined,
+    totalDistributed: totalDistributed > 0 ? totalDistributed : undefined,
+    totalReceived: totalReceived > 0 ? totalReceived : undefined,
+    averagePerShift: shifts.length > 0 ? (totalCollected + totalReceived) / shifts.length : 0
+  };
+  
+  console.log('✅ Generated group performance report');
+  return report;
+}
+
+// STAFF GROUP CREATE METHODS
   
   static async createStaffGroup(request: CreateStaffGroupRequest): Promise<StaffGroupWithId> {
     console.log('📝 Creating staff group:', request.name);
@@ -236,62 +721,98 @@ export class StaffService {
   }
 
   static async seedInitialData(): Promise<void> {
-    console.log('🌱 === STARTING SEED CHECK ===');
-    
-    try {
-      const db = await this.getDb();
-      console.log('✅ Database connected');
-      
-      // Check existing data
-      const existingCount = await db.collection('staff_members').countDocuments();
-      console.log(`📊 Existing members: ${existingCount}`);
-      
-      if (existingCount > 0) {
-        console.log('✅ Data already exists, skipping seed');
-        return;
-      }
-
-      console.log('🌱 No data found, starting seeding...');
-      
-      // Try to import mock data
-      let mockStaffMembers;
-      try {
-        console.log('📁 Attempting to load mock-data.ts...');
-        const mockData = await import('../../../mock-data');
-        mockStaffMembers = mockData.mockStaffMembers;
-        console.log(`✅ Loaded ${mockStaffMembers.length} members from mock data`);
-      } catch (importError) {
-        console.error('❌ Failed to import mock-data.ts:', importError);
-        
-        // Fallback: Create some test data
-        console.log('📝 Creating fallback test data...');
-        mockStaffMembers = [
-          { firstName: 'John', lastName: 'Doe', dateCreated: new Date() },
-          { firstName: 'Jane', lastName: 'Smith', dateCreated: new Date() },
-          { firstName: 'Mike', lastName: 'Johnson', dateCreated: new Date() }
-        ];
-      }
-      
-      // Prepare documents for insertion
-      const membersToInsert: StaffMemberDocument[] = mockStaffMembers.map(member => ({
-        firstName: member.firstName,
-        lastName: member.lastName,
-        dateCreated: member.dateCreated
-      }));
-
-      console.log(`💾 Inserting ${membersToInsert.length} members...`);
-      
-      const result = await db.collection<StaffMemberDocument>('staff_members')
-        .insertMany(membersToInsert);
-      
-      console.log(`✅ SUCCESS! Inserted ${result.insertedCount} members`);
-      console.log(`🔑 Sample IDs: ${Object.values(result.insertedIds).slice(0, 3).join(', ')}`);
-
-    } catch (error) {
-      console.error('❌ SEEDING FAILED:', error);
-      throw error;
-    }
+  console.log('🌱 Checking if seeding is needed...');
+  const db = await this.getDb();
+  
+  const existingCount = await db.collection('staff_members').countDocuments();
+  console.log(`📊 Existing members: ${existingCount}`);
+  
+  if (existingCount > 0) {
+    console.log('✅ Data already exists');
+    return;
   }
+
+  console.log('🌱 Starting seeding...');
+  
+  try {
+    const { mockStaffMembers } = await import('../../../mock-data');
+    console.log(`📋 Loaded ${mockStaffMembers.length} members from mock data`);
+    
+    const membersToInsert: StaffMemberDocument[] = mockStaffMembers.map(member => ({
+      firstName: member.firstName,
+      lastName: member.lastName,
+      dateCreated: member.dateCreated,
+      collectsSales: member.collectsSales || false  // Add this with default false
+    }));
+
+    const result = await db.collection<StaffMemberDocument>('staff_members').insertMany(membersToInsert);
+    console.log(`✅ Successfully seeded ${result.insertedCount} members`);
+    
+  } catch (error) {
+    console.error('❌ Seeding failed:', error);
+    throw error;
+  }
+}
+
+
+
+  // static async seedInitialData(): Promise<void> {
+  //   console.log('🌱 === STARTING SEED CHECK ===');
+    
+  //   try {
+  //     const db = await this.getDb();
+  //     console.log('✅ Database connected');
+      
+  //     // Check existing data
+  //     const existingCount = await db.collection('staff_members').countDocuments();
+  //     console.log(`📊 Existing members: ${existingCount}`);
+      
+  //     if (existingCount > 0) {
+  //       console.log('✅ Data already exists, skipping seed');
+  //       return;
+  //     }
+
+  //     console.log('🌱 No data found, starting seeding...');
+      
+  //     // Try to import mock data
+  //     let mockStaffMembers;
+  //     try {
+  //       console.log('📁 Attempting to load mock-data.ts...');
+  //       const mockData = await import('../../../mock-data');
+  //       mockStaffMembers = mockData.mockStaffMembers;
+  //       console.log(`✅ Loaded ${mockStaffMembers.length} members from mock data`);
+  //     } catch (importError) {
+  //       console.error('❌ Failed to import mock-data.ts:', importError);
+        
+  //       // Fallback: Create some test data
+  //       console.log('📝 Creating fallback test data...');
+  //       mockStaffMembers = [
+  //         { firstName: 'John', lastName: 'Doe', dateCreated: new Date() },
+  //         { firstName: 'Jane', lastName: 'Smith', dateCreated: new Date() },
+  //         { firstName: 'Mike', lastName: 'Johnson', dateCreated: new Date() }
+  //       ];
+  //     }
+      
+  //     // Prepare documents for insertion
+  //     const membersToInsert: StaffMemberDocument[] = mockStaffMembers.map(member => ({
+  //       firstName: member.firstName,
+  //       lastName: member.lastName,
+  //       dateCreated: member.dateCreated
+  //     }));
+
+  //     console.log(`💾 Inserting ${membersToInsert.length} members...`);
+      
+  //     const result = await db.collection<StaffMemberDocument>('staff_members')
+  //       .insertMany(membersToInsert);
+      
+  //     console.log(`✅ SUCCESS! Inserted ${result.insertedCount} members`);
+  //     console.log(`🔑 Sample IDs: ${Object.values(result.insertedIds).slice(0, 3).join(', ')}`);
+
+  //   } catch (error) {
+  //     console.error('❌ SEEDING FAILED:', error);
+  //     throw error;
+  //   }
+  // }
 
   static async forceSeedData(): Promise<void> {
     console.log('🔄 === FORCE SEEDING ===');

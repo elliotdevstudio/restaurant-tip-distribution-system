@@ -1,4 +1,29 @@
-import { MongoClient, MongoClientOptions, Db } from 'mongodb';
+import { MongoClient, MongoClientOptions, Db, BSON } from 'mongodb';
+
+interface ShiftDocument {
+  _id?: ObjectId;
+  date: Date;
+  type: 'AM' | 'PM' | 'FULL_DAY';
+  status: 'active' | 'closed';
+  createdAt: Date;
+}
+
+interface ShiftAssignmentDocument {
+  _id?: ObjectId;
+  shiftId: ObjectId;
+  staffId: ObjectId;
+  activeGroupId: ObjectId;
+  createdAt: Date;
+}
+
+interface TipEntryDocument {
+  _id?: ObjectId;
+  shiftId: ObjectId;
+  staffId: ObjectId;
+  creditCardTips: number;
+  cashTips?: number;
+  recordedAt: Date;
+}
 
 if (!process.env.MONGODB_URI) {
   throw new Error('Invalid/Missing environment variable: "MONGODB_URI"');

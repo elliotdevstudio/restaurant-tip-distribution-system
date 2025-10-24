@@ -17,11 +17,44 @@ import {
   DailyShiftDocument,
   DailyShiftWithId,
   transformDailyShift
-} from '../models/DailyShift'
+} from '../models/DailyShift';
 
 export class StaffService {
   private static async getDb() {
     return DatabaseConnection.getDatabase('staff_management');
+  }
+
+  static async ensureIndexes(): Promise<void> {
+    console.log('🔧 Creating database indexes...');
+    const db = await this.getDb();
+    
+    try {
+      // Staff Members indexes
+      await db.collection('staff_members').createIndexes([
+        { key: { dateCreated: -1 } },
+        { key: { lastName: 1, firstName: 1 } }
+      ]);
+      console.log('✅ Staff members indexes created');
+      
+      // Staff Groups indexes
+      await db.collection('staff_groups').createIndexes([
+        { key: { staffMemberIds: 1 } },
+        { key: { 'gratuityConfig.recipientGroupIds': 1 } }
+      ]);
+      console.log('✅ Staff groups indexes created');
+      
+      // Daily Shifts indexes
+      await db.collection('daily_shifts').createIndexes([
+        { key: { date: -1, type: 1 }, unique: true },
+        { key: { status: 1, date: -1 } }
+      ]);
+      console.log('✅ Daily shifts indexes created');
+      
+      console.log('✅ All database indexes created successfully');
+    } catch (error) {
+      console.error('❌ Error creating indexes:', error);
+      throw error;
+    }
   }
 
   static async getAllStaffMembers(): Promise<StaffMemberWithId[]> {
@@ -42,6 +75,7 @@ export class StaffService {
       throw error;
     }
   }
+
   static async getAllStaffGroups(): Promise<StaffGroupWithId[]> {
     console.log('📋 Fetching all staff groups...');
     const db = await this.getDb();
@@ -52,7 +86,35 @@ export class StaffService {
     
     console.log(`✅ Found ${groups.length} staff groups`);
     return groups.map(transformStaffGroup);
+  }static async createStaffMember(
+  firstName: string,
+  lastName: string,
+  collectsSales: boolean
+): Promise<StaffMemberWithId> {
+  console.log('📝 Creating staff member:', firstName, lastName);
+  const db = await this.getDb();
+  
+  const memberDoc: StaffMemberDocument = {
+    firstName,
+    lastName,
+    collectsSales,
+    dateCreated: new Date()
+  };
+
+  const result = await db.collection<StaffMemberDocument>('staff_members')
+    .insertOne(memberDoc);
+  
+  const created = await db.collection<StaffMemberDocument>('staff_members')
+    .findOne({ _id: result.insertedId });
+  
+  if (!created) {
+    throw new Error('Failed to create staff member');
   }
+
+  console.log('✅ Successfully created staff member');
+  return transformStaffMember(created);
+}
+
 
   // DAILY SHIFT METHODS (Replaces previous shift/assignment/tip methods)
 // ============================================

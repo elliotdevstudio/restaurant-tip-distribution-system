@@ -1,19 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StaffService } from '../../lib/services/staffService';
 
+// Track if indexes have been created
+let indexesCreated = false;
+
 // GET all staff members
 export async function GET() {
+  console.log('🔥 Members API called - starting initialization...');
+  
   try {
+    // Create indexes on first run
+    if (!indexesCreated) {
+      await StaffService.ensureIndexes();
+      indexesCreated = true;
+    }
+    
+    // Seed initial data if needed
+    await StaffService.seedInitialData();
+    
+    // Fetch members
     const members = await StaffService.getAllStaffMembers();
-    return NextResponse.json({ success: true, members });
+    
+    console.log(`📤 Returning ${members.length} members to frontend`);
+    
+    return NextResponse.json({
+      success: true,
+      members,
+      count: members.length
+    });
   } catch (error) {
-    console.error('Error fetching staff members:', error);
+    console.error('❌ Error in members API:', error);
     return NextResponse.json(
-      { success: false, message: 'Failed to fetch staff members' },
+      { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to fetch staff members',
+        error: error instanceof Error ? error.stack : String(error)
+      },
       { status: 500 }
     );
   }
 }
+
 
 // POST create new staff member
 export async function POST(request: NextRequest) {

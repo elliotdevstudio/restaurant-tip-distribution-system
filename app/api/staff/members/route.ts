@@ -2,13 +2,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StaffService } from '../../../lib/services/staffService';
 
+// Track if indexes have been created
+let indexesCreated = false;
+
 // GET all staff members
 export async function GET() {
-  console.log('🔥 Members API called - starting seeding check...');
+  
+  console.log('🔥 Members API called - starting initialization...');
   
   try {
-    // Force seeding to happen on first load
+    // Create indexes on first run
+    if (!indexesCreated) {
+      await StaffService.ensureIndexes();
+      indexesCreated = true;
+    }
+    
+    // Seed initial data if needed
     await StaffService.seedInitialData();
+    
+    // Fetch members
     const members = await StaffService.getAllStaffMembers();
     
     console.log(`📤 Returning ${members.length} members to frontend`);
@@ -30,6 +42,7 @@ export async function GET() {
     );
   }
 }
+
 
 // POST create new staff member
 export async function POST(request: NextRequest) {

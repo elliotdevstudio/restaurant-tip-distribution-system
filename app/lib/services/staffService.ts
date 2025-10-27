@@ -76,17 +76,7 @@ export class StaffService {
     }
   }
 
-  static async getAllStaffGroups(): Promise<StaffGroupWithId[]> {
-    console.log('📋 Fetching all staff groups...');
-    const db = await this.getDb();
-    const groups = await db.collection<StaffGroupDocument>('staff_groups')
-      .find({})
-      .sort({ dateCreated: -1 })
-      .toArray();
-    
-    console.log(`✅ Found ${groups.length} staff groups`);
-    return groups.map(transformStaffGroup);
-  }static async createStaffMember(
+  static async createStaffMember(
   firstName: string,
   lastName: string,
   collectsSales: boolean
@@ -114,6 +104,19 @@ export class StaffService {
   console.log('✅ Successfully created staff member');
   return transformStaffMember(created);
 }
+  
+
+  static async getAllStaffGroups(): Promise<StaffGroupWithId[]> {
+    console.log('📋 Fetching all staff groups...');
+    const db = await this.getDb();
+    const groups = await db.collection<StaffGroupDocument>('staff_groups')
+      .find({})
+      .sort({ dateCreated: -1 })
+      .toArray();
+    
+    console.log(`✅ Found ${groups.length} staff groups`);
+    return groups.map(transformStaffGroup);
+  }
 
 
   // DAILY SHIFT METHODS (Replaces previous shift/assignment/tip methods)

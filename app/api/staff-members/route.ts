@@ -6,6 +6,7 @@ let indexesCreated = false;
 
 // GET all staff members
 export async function GET() {
+  
   console.log('🔥 Members API called - starting initialization...');
   
   try {

@@ -79,15 +79,13 @@ export class StaffService {
   static async createStaffMember(
   firstName: string,
   lastName: string,
-  collectsSales: boolean
 ): Promise<StaffMemberWithId> {
-  console.log('📝 Creating staff member:', firstName, lastName);
+  console.log('📝 Creating staff member:', firstName, lastName );
   const db = await this.getDb();
   
   const memberDoc: StaffMemberDocument = {
     firstName,
     lastName,
-    collectsSales,
     dateCreated: new Date()
   };
 
@@ -703,7 +701,6 @@ static async getGroupPerformanceReport(
      throw new Error('Group not found')
     }
 
-
     // Prepare the update document
     const updateDoc: any = {
       dateUpdated: new Date()
@@ -716,9 +713,15 @@ static async getGroupPerformanceReport(
     }
     if (updates.gratuityConfig) {
       updateDoc.gratuityConfig = {
-        ...updates.gratuityConfig,
-        sourceGroupIds: updates.gratuityConfig.sourceGroupIds?.map(id => new ObjectId(id)) || [],
-        recipientGroupIds: updates.gratuityConfig.recipientGroupIds?.map(id => new ObjectId(id)) || []
+        distributesGratuities: updates.gratuityConfig.distributesGratuities,
+        contributionSource: updates.gratuityConfig.contributionSource,
+        distributionBasis: updates.gratuityConfig.distributionBasis,
+        sourceGroupIds: updates.gratuityConfig.sourceGroupIds?.map((id: string) => new ObjectId(id)) || [],
+        recipientGroupIds: updates.gratuityConfig.recipientGroupIds?.map((id: string) => new ObjectId(id)) || [],
+        distributionType: updates.gratuityConfig.distributionType,
+        fixedAmount: updates.gratuityConfig.fixedAmount,
+        percentage: updates.gratuityConfig.percentage,
+        tipPoolId: updates.gratuityConfig.tipPoolId  // ✅ ADD THIS LINE
       };
 
     // HANDLE BIDIRECTIONAL CONNECTION UPDATES
@@ -750,7 +753,6 @@ static async getGroupPerformanceReport(
         await this.updateGroupConnections(sourceId, groupId, 'remove');
       }
     }
-
     const result = await db.collection<StaffGroupDocument>('staff_groups')
       .updateOne({ _id: new ObjectId(groupId) }, { $set: updateDoc });
     
@@ -769,6 +771,7 @@ static async getGroupPerformanceReport(
     console.log('✅ Successfully updated staff group with bidirectional connections');
     return transformStaffGroup(updatedGroup);
   }
+    
 
   static async deleteStaffGroup(groupId: string): Promise<void> {
     console.log('🗑️ Deleting staff group:', groupId);
@@ -807,7 +810,6 @@ static async getGroupPerformanceReport(
       firstName: member.firstName,
       lastName: member.lastName,
       dateCreated: member.dateCreated,
-      collectsSales: member.collectsSales || false  // Add this with default false
     }));
 
     const result = await db.collection<StaffMemberDocument>('staff_members').insertMany(membersToInsert);

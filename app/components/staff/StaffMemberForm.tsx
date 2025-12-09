@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { StaffMember } from '../../../types';
 
 interface StaffMemberFormProps {
-  onSubmit: (data: { firstName: string; lastName: string; collectsSales: boolean }) => Promise<void>;
+  onSubmit: (data: { firstName: string; lastName: string }) => Promise<void>;
   onCancel: () => void;
   initialData?: StaffMember;
 }
@@ -11,19 +11,17 @@ interface StaffMemberFormProps {
 export default function StaffMemberForm({ onSubmit, onCancel, initialData }: StaffMemberFormProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [collectsSales, setCollectsSales] = useState(false);
 
   useEffect(() => {
     if (initialData) {
       setFirstName(initialData.firstName);
       setLastName(initialData.lastName);
-      setCollectsSales(initialData.collectsSales);
     }
   }, [initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit({ firstName, lastName, collectsSales });
+    await onSubmit({ firstName, lastName });
   };
 
   const canSubmit = firstName.trim() !== '' && lastName.trim() !== '';
@@ -59,23 +57,6 @@ export default function StaffMemberForm({ onSubmit, onCancel, initialData }: Sta
             className="w-full border border-gray-300 rounded px-3 py-2"
             placeholder="Enter last name"
           />
-        </div>
-
-        <div>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={collectsSales}
-              onChange={(e) => setCollectsSales(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            <span className="text-sm font-medium text-gray-700">
-              This staff member collects sales
-            </span>
-          </label>
-          <p className="text-xs text-gray-500 mt-1 ml-6">
-            Check this for servers, cashiers, or anyone who handles customer transactions
-          </p>
         </div>
 
         <div className="flex justify-end space-x-3 pt-4">

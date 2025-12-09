@@ -48,7 +48,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { firstName, lastName, collectsSales } = body;
+    const { firstName, lastName } = body;
 
     if (!firstName || !lastName) {
       return NextResponse.json(
@@ -60,7 +60,6 @@ export async function POST(request: NextRequest) {
     const member = await StaffService.createStaffMember(
       firstName,
       lastName,
-      collectsSales || false
     );
 
     return NextResponse.json({ success: true, member }, { status: 201 });

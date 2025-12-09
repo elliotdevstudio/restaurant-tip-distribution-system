@@ -5,7 +5,6 @@ export interface StaffMemberDocument {
   firstName: string;
   lastName: string;
   dateCreated: Date;
-  collectsSales: boolean;
 }
 
 export interface StaffMemberWithId {
@@ -13,7 +12,6 @@ export interface StaffMemberWithId {
   firstName: string;
   lastName: string;
   dateCreated: Date;
-  collectsSales: boolean;
 }
 
 // Transform MongoDB document to frontend format
@@ -22,8 +20,7 @@ export function transformStaffMember(doc: StaffMemberDocument): StaffMemberWithI
     id: doc._id!.toString(),
     firstName: doc.firstName,
     lastName: doc.lastName,
-    dateCreated: doc.dateCreated,
-    collectsSales: doc.collectsSales,
+    dateCreated: doc.dateCreated
   };
 }
 
@@ -36,7 +33,6 @@ export function toStaffMemberDocument(
   if (data.firstName !== undefined) doc.firstName = data.firstName;
   if (data.lastName !== undefined) doc.lastName = data.lastName;
   if (data.dateCreated !== undefined) doc.dateCreated = data.dateCreated;
-  if (data.collectsSales !== undefined) doc.collectsSales = data.collectsSales;
   
   return doc;
 }

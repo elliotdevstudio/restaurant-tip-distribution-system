@@ -34,12 +34,11 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const { firstName, lastName, collectsSales } = body;
+    const { firstName, lastName } = body;
 
     const updatedMember = await StaffService.updateStaffMember(params.memberId, {
       firstName,
       lastName,
-      collectsSales
     });
 
     return NextResponse.json({ 

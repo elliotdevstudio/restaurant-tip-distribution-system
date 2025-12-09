@@ -1,28 +1,28 @@
 import { ObjectId } from 'bson';
 
-export type {
-  DailyShift,
-  StaffShiftData,
-  GroupShiftSummary,
-  ShiftTotals,
-  ShiftStatus
-} from '../app/lib/models/DailyShift';
+// export type {
+//   DailyShift,
+//   StaffShiftData,
+//   GroupShiftSummary,
+//   ShiftTotals,
+//   ShiftStatus
+// } from '../app/lib/models/DailyShift';
 
-export type {
-  StaffGroup,
-  DistributorStaffGroup,
-  RecipientStaffGroup,
-  AnyStaffGroup,
-  StaffGroupDocument,
-  StaffGroupWithId,
-  GratuityConfig
-} from '../app/lib/models/StaffGroup';
+// export type {
+//   StaffGroup,
+//   DistributorStaffGroup,
+//   RecipientStaffGroup,
+//   AnyStaffGroup,
+//   StaffGroupDocument,
+//   StaffGroupWithId,
+//   GratuityConfig
+// } from '../app/lib/models/StaffGroup';
 
-export type { 
-  StaffMember,
-  StaffMemberDocument,
-  StaffMemberWithId 
-} from '../app/lib/models/StaffMember';
+// export type { 
+//   StaffMember,
+//   StaffMemberDocument,
+//   StaffMemberWithId 
+// } from '../app/lib/models/StaffMember';
 
 // base staffmember type
 export interface StaffMember {
@@ -30,7 +30,6 @@ export interface StaffMember {
   firstName: string;
   lastName: string;
   dateCreated: Date;
-  collectsSales: boolean;
 }
 
 // TIP CALCULATION RESULT TYPES
@@ -93,29 +92,18 @@ export interface ShiftCalculationSummary {
 
 // gratuity dist. types
 export type GratuityDistributionType = 'fixed' | 'percentage';
-export type ContributionSourceType = 'sales' | 'gratuities';
-
-// gratuity configuration interface
-// export interface GratuityConfig {
-//   distributesGratuities: boolean;
-//   sourceGroupIds?: string[];
-//   distributionType?: GratuityDistributionType
-//   contributionSource?: ContributionSourceType;
-//   fixedAmount?: number;
-//   percentage?: number;
-//   recipientGroupIds?: string[];
-// }
 
 export interface GratuityConfig {
   distributesGratuities: boolean;
   contributionSource?: 'sales' | 'gratuities';
-  distributionBasis?: 'sales' | 'gratuities';  // NEW
+  distributionBasis?: 'sales' | 'gratuities'; 
   
   sourceGroupIds?: string[];
   recipientGroupIds?: string[];
   distributionType?: 'fixed' | 'percentage';
   fixedAmount?: number;
   percentage?: number;
+  tipPoolId?: string;
 }
 // base staff group interface
 export interface StaffGroup  {
@@ -157,7 +145,7 @@ export interface GratuityRecipientGroup extends StaffGroup {
 // extended interface for groups that distribute gratuities
 export interface GratuityDistributorGroup extends StaffGroup {
   gratuityConfig: GratuityConfig & {
-    contributionSource: ContributionSourceType;
+    contributionSource: 'sales' | 'gratuities';
     distributesGratuities: true;
   };
   recipientGroups?: string[];// IDs of groups that receive gratuities from this group
@@ -194,17 +182,19 @@ export interface StaffGroupFormState {
   
   // Gratuity configuration
   distributesGratuities?: boolean;
-  contributionSource?: ContributionSourceType; // NEW: For distributors
+  contributionSource?: 'sales' | 'gratuities'; // NEW: For distributors
   sourceGroupIds?: string[];
-  distributionType?: GratuityDistributionType;
+  distributionType?: 'fixed' | 'percentage';
+  distributionBasis?: 'sales' | 'gratuities';
   fixedAmount?: number;
   percentage?: number;
   recipientGroupIds?: string[];
-  
+  useSharedTipPool?: boolean;
+  sharedTipPoolId?: string;
   // UI state
   isCreatingSourceGroup: boolean;
   showGratuityModal: boolean;
-  step: 'basic' | 'contribution-source' | 'gratuity-setup' | 'connection-setup' | 'review';
+  step: 'basic' | 'contribution-source' | 'gratuity-setup' | 'connection-setup' | 'tip-pool-setup' | 'review';
 }
 
 // Modal state for nested group creation

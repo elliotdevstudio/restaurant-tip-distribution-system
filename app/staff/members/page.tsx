@@ -55,7 +55,7 @@ export default function StaffMembersPage() {
   }, [setStaffMembers, setStaffGroups]);
 
   
-  const handleCreateMember = async (data: { firstName: string; lastName: string; collectsSales: boolean }) => {
+  const handleCreateMember = async (data: { firstName: string; lastName: string }) => {
     try {
       const response = await fetch('/api/staff-members', {
         method: 'POST',
@@ -77,7 +77,7 @@ export default function StaffMembersPage() {
     }
   };
 
-  const handleUpdateMember = async (data: { firstName: string; lastName: string; collectsSales: boolean }) => {
+  const handleUpdateMember = async (data: { firstName: string; lastName: string }) => {
     if (!editingMember) return;
 
     try {
@@ -213,9 +213,6 @@ export default function StaffMembersPage() {
                       Groups
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Collects Sales
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Date Added
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -252,15 +249,6 @@ export default function StaffMembersPage() {
                               No group assigned
                             </span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            member.collectsSales 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {member.collectsSales ? 'Yes' : 'No'}
-                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(member.dateCreated).toLocaleDateString()}

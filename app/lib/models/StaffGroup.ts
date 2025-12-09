@@ -1,26 +1,30 @@
 import { ObjectId } from "mongodb";
-import { GratuityDistributionType, ContributionSourceType } from "../../../types";
+import { GratuityDistributionType } from "../../../types";
 
 export interface GratuityConfigDocument {
   distributesGratuities: boolean;
-  contributionSource?: 'sales' | 'gratuities'; // NEW: For distributor groups
+  contributionSource?: 'sales' | 'gratuities'; // For distributor groups
   sourceGroupIds?: ObjectId[];
   distributionType?: GratuityDistributionType;
+  distributionBasis?: 'sales' | 'gratuities';
   fixedAmount?: number;
   percentage?: number;
   recipientGroupIds?: ObjectId[];
+  tipPoolId?: string;
 }
 
 export interface GratuityConfig {
   distributesGratuities: boolean;
-  contributionSource?: 'sales' | 'gratuities'; // What they collect from (existing)
-  distributionBasis?: 'sales' | 'gratuities';  // NEW: What they distribute based on
+  contributionSource?: 'sales' | 'gratuities'; 
+  distributionBasis?: 'sales' | 'gratuities';  
   
   sourceGroupIds?: ObjectId[];
   recipientGroupIds?: ObjectId[];
   distributionType?: 'fixed' | 'percentage';
   fixedAmount?: number;
   percentage?: number;
+  tipPoolId?: string;  // Groups with same tipPoolId share the percentage
+
 }
 export interface StaffGroupDocument {
   _id?: ObjectId;
@@ -41,12 +45,14 @@ export interface StaffGroupWithId {
   dateUpdated: Date;
   gratuityConfig: {
     distributesGratuities: boolean;
-    contributionSource?: ContributionSourceType; // NEW
+    contributionSource?: 'sales' | 'gratuities'; 
+    distributionBasis?: 'sales' | 'gratuities';
     sourceGroupIds?: string[];
     recipientGroupIds?: string[];
     distributionType?: GratuityDistributionType;
     fixedAmount?: number;
     percentage?: number;
+    tipPoolId?: string;
   };
 }
 
@@ -60,12 +66,14 @@ export function transformStaffGroup(doc: StaffGroupDocument): StaffGroupWithId {
     dateUpdated: doc.dateUpdated,
     gratuityConfig: {
       distributesGratuities: doc.gratuityConfig.distributesGratuities,
-      contributionSource: doc.gratuityConfig.contributionSource, // NEW
+      contributionSource: doc.gratuityConfig.contributionSource, 
+      distributionBasis: doc.gratuityConfig.distributionBasis,
       sourceGroupIds: doc.gratuityConfig.sourceGroupIds?.map(id => id.toString()) || [],
       distributionType: doc.gratuityConfig.distributionType,
       fixedAmount: doc.gratuityConfig.fixedAmount,
       percentage: doc.gratuityConfig.percentage,
-      recipientGroupIds: doc.gratuityConfig.recipientGroupIds?.map(id => id.toString()) || []
+      recipientGroupIds: doc.gratuityConfig.recipientGroupIds?.map(id => id.toString()) || [],
+      tipPoolId: doc.gratuityConfig.tipPoolId
     }
   };
 }
@@ -86,12 +94,14 @@ export function toStaffGroupDocument(
   if (data.gratuityConfig !== undefined) {
     doc.gratuityConfig = {
       distributesGratuities: data.gratuityConfig.distributesGratuities,
-      contributionSource: data.gratuityConfig.contributionSource, // NEW
+      contributionSource: data.gratuityConfig.contributionSource,
+      distributionBasis: data.gratuityConfig.distributionBasis,
       sourceGroupIds: data.gratuityConfig.sourceGroupIds?.map(id => new ObjectId(id)) || [],
       distributionType: data.gratuityConfig.distributionType,
       fixedAmount: data.gratuityConfig.fixedAmount,
       percentage: data.gratuityConfig.percentage,
-      recipientGroupIds: data.gratuityConfig.recipientGroupIds?.map(id => new ObjectId(id)) || []
+      recipientGroupIds: data.gratuityConfig.recipientGroupIds?.map(id => new ObjectId(id)) || [],
+      tipPoolId: data.gratuityConfig.tipPoolId
     };
   }
   

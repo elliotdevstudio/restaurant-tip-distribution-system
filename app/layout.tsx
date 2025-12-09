@@ -23,6 +23,7 @@ export default function RootLayout({
               <div className="flex space-x-4">
                 <a href="/staff/members" className="hover:text-gray-300">Staff Members</a>
                 <a href="/staff/groups" className="hover:text-gray-300">Staff Groups</a>
+                <a href="/demo" className="hover:text-gray-300">Generate Daily Shift</a>
               </div>
             </div>
           </nav>

@@ -14,8 +14,8 @@ interface StaffGroupFormProps {
   onClose: () => void;
   onSuccess: () => void;
   editingGroup?: any;
-  staffMembers: StaffMember[];    // ← Should be here
-  staffGroups: AnyStaffGroup[];   // ← Should be here
+  staffMembers: StaffMember[];   
+  staffGroups: AnyStaffGroup[];   
 }
 
 export default function StaffGroupForm({ 
@@ -136,57 +136,73 @@ export default function StaffGroupForm({
   };
 
   const handleSubmit = async () => {
-  console.log('📤 Submitting form:', { isEdit: !!editingGroup, formState });
+    console.log('📤 Submitting form:', { isEdit: !!editingGroup, formState });
 
-  const request: CreateStaffGroupRequest = {
-  name: formState.name,
-  description: formState.description,
-  staffMemberIds: formState.selectedStaffMemberIds,
-  gratuityConfig: {
-    distributesGratuities: formState.distributesGratuities || false,
-    contributionSource: formState.contributionSource,
-    distributionBasis: formState.distributionBasis,  
-    sourceGroupIds: formState.sourceGroupIds || [],
-    distributionType: formState.distributionType,
-    fixedAmount: formState.fixedAmount,
-    percentage: formState.percentage,
-    recipientGroupIds: formState.recipientGroupIds || []
-  }
-  };
-  console.log('🔍 Form state at submit:', {
-  useSharedTipPool: formState.useSharedTipPool,
-  sharedTipPoolId: formState.sharedTipPoolId,
-  recipientGroupIds: formState.recipientGroupIds,
-  willApplyPoolId: !!(formState.useSharedTipPool && formState.sharedTipPoolId)
-});
-  try {
-    // melanie,arthur,michelle, lesley runners
-        if (formState.useSharedTipPool && formState.sharedTipPoolId && formState.recipientGroupIds) {
-          for (const recipientId of formState.recipientGroupIds) {
-            const recipientGroup = staffGroups.find(g => g.id === recipientId);
-            if (!recipientGroup) continue;
-            
-            await updateStaffGroup(recipientId, {
-              name: recipientGroup.name,
-              description: recipientGroup.description,
-              staffMemberIds: recipientGroup.staffMemberIds,
-              gratuityConfig: {
-                ...recipientGroup.gratuityConfig,
-                tipPoolId: formState.sharedTipPoolId  // Add pool ID
-              }
-            });
+    const request: CreateStaffGroupRequest = {
+      name: formState.name,
+      description: formState.description,
+      staffMemberIds: formState.selectedStaffMemberIds,
+      gratuityConfig: {
+        distributesGratuities: formState.distributesGratuities || false,
+        contributionSource: formState.contributionSource,
+        distributionBasis: formState.distributionBasis,  
+        sourceGroupIds: formState.sourceGroupIds || [],
+        distributionType: formState.distributionType,
+        fixedAmount: formState.fixedAmount,
+        percentage: formState.percentage,
+        recipientGroupIds: formState.recipientGroupIds || [],
+        tipPoolId: formState.useSharedTipPool ? formState.sharedTipPoolId : undefined
+      }
+    };
+
+    console.log('🔍 Form state at submit:', {
+      useSharedTipPool: formState.useSharedTipPool,
+      sharedTipPoolId: formState.sharedTipPoolId,
+      poolWithGroupIds: formState.poolWithGroupIds,
+      willApplyPoolId: !!(formState.useSharedTipPool && formState.sharedTipPoolId)
+    });
+
+    try {
+      // Step 1: Create or update THIS group
+      if (editingGroup) {
+        await updateStaffGroup(editingGroup.id, request);
+        console.log('✅ Updated group:', editingGroup.id);
+      } else {
+        await createStaffGroup(request);
+        console.log('✅ Created new group');
+      }
+
+    // Step 2: Update other groups in the pool
+      if (formState.useSharedTipPool && formState.sharedTipPoolId && formState.poolWithGroupIds) {
+        console.log('🔗 Updating pool groups with tipPoolId:', formState.sharedTipPoolId);
+        
+        for (const groupId of formState.poolWithGroupIds) {
+          const recipientGroup = staffGroups.find(g => g.id === groupId);
+          if (!recipientGroup) {
+            console.warn('⚠️ Could not find group:', groupId);
+            continue;
           }
+          
+          console.log(`📝 Updating ${recipientGroup.name} with pool ID`);
+          await updateStaffGroup(groupId, {
+            name: recipientGroup.name,
+            description: recipientGroup.description,
+            staffMemberIds: recipientGroup.staffMemberIds,
+            gratuityConfig: {
+              ...recipientGroup.gratuityConfig,
+              tipPoolId: formState.sharedTipPoolId
+            }
+          });
         }
-    if (editingGroup) {
-      await updateStaffGroup(editingGroup.id, request);
-    } else {
-      await createStaffGroup(request);
+        
+        console.log('✅ Updated all pool groups');
+      }
+
+      onSuccess();
+    } catch (error) {
+      console.error('❌ Failed to save group:', error);
+      alert('Failed to save group');
     }
-    onSuccess(); // Call success callback
-  } catch (error) {
-    console.error('Failed to save group:', error);
-    alert('Failed to save group');
-  }
   };
 
   const canProceedFromBasic = formState.name.trim() !== '' && formState.selectedStaffMemberIds.length > 0;

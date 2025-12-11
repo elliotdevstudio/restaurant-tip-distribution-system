@@ -191,6 +191,7 @@ export interface StaffGroupFormState {
   recipientGroupIds?: string[];
   useSharedTipPool?: boolean;
   sharedTipPoolId?: string;
+  poolWithGroupIds?: string[];
   // UI state
   isCreatingSourceGroup: boolean;
   showGratuityModal: boolean;

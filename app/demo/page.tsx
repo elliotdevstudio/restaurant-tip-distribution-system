@@ -331,63 +331,144 @@ export default function DemoPage() {
   // PRE-CALCULATE group totals (runs once per demoEntries change)
 
   const recipientGroupTipOuts = useMemo(() => {
-    console.log('🔄 Recalculating recipient group tip outs...');
-    const totals = new Map<string, number>();
+  console.log('🔄 Recalculating recipient group tip outs (Option B - split by group hours)...');
+  const totals = new Map<string, number>();
+  
+  const recipientGroups = staffGroups.filter(g => !g.gratuityConfig.distributesGratuities);
+  
+  // Step 1: Group recipients by their pool ID (or standalone)
+  const poolGroups = new Map<string, typeof recipientGroups>();
+  const standaloneGroups: typeof recipientGroups = [];
+  
+  recipientGroups.forEach(recipientGroup => {
+    const tipPoolId = recipientGroup.gratuityConfig.tipPoolId;
     
-    const recipientGroups = staffGroups.filter(g => !g.gratuityConfig.distributesGratuities);
+    if (tipPoolId) {
+      if (!poolGroups.has(tipPoolId)) {
+        poolGroups.set(tipPoolId, []);
+      }
+      poolGroups.get(tipPoolId)!.push(recipientGroup);
+    } else {
+      standaloneGroups.push(recipientGroup);
+    }
+  });
+  
+  // Step 2: Calculate for each POOL and split by group hours
+  poolGroups.forEach((groupsInPool, poolId) => {
+    console.log(`🔗 Calculating pool ${poolId} with ${groupsInPool.length} groups`);
     
-    recipientGroups.forEach(recipientGroup => {
-      let totalTipOut = 0;
+    const poolConfig = groupsInPool[0].gratuityConfig;
+    let poolTotalTipOut = 0;
+    
+    // Calculate total pool amount from all distributors
+    const sourceDistributorGroups = staffGroups.filter(g => 
+      g.gratuityConfig.distributesGratuities && 
+      groupsInPool.some(poolGroup => 
+        g.gratuityConfig.recipientGroupIds?.includes(poolGroup.id)
+      )
+    );
+    
+    sourceDistributorGroups.forEach(distributorGroup => {
+      const distributionType = poolConfig.distributionType || 'percentage';
+      const percentage = poolConfig.percentage;
+      const fixedAmount = poolConfig.fixedAmount;
+      const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
       
-      const sourceDistributorGroups = staffGroups.filter(g => 
-        g.gratuityConfig.distributesGratuities && 
-        g.gratuityConfig.recipientGroupIds?.includes(recipientGroup.id)
+      const distributorEntries = demoEntries.filter(e => 
+        e.groupId === distributorGroup.id && e.isDistributor
       );
       
-      sourceDistributorGroups.forEach(distributorGroup => {
-        const distributionType = recipientGroup.gratuityConfig.distributionType || 'percentage';
-        const percentage = recipientGroup.gratuityConfig.percentage;
-        const fixedAmount = recipientGroup.gratuityConfig.fixedAmount;
-        const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
+      distributorEntries.forEach(distributorEntry => {
+        const totalTips = (distributorEntry.creditCardTips || 0) + (distributorEntry.cashTips || 0);
+        const salesAmount = distributorEntry.salesAmount || 0;
         
-        const distributorEntries = demoEntries.filter(e => 
-          e.groupId === distributorGroup.id && e.isDistributor
-        );
-        
-        distributorEntries.forEach(distributorEntry => {
-          const totalTips = (distributorEntry.creditCardTips || 0) + (distributorEntry.cashTips || 0);
-          const salesAmount = distributorEntry.salesAmount || 0;
-          
-          if (distributionType === 'fixed') {
-            totalTipOut += fixedAmount || 0;
-          } else if (distributionType === 'percentage' && percentage) {
-            const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
-            totalTipOut += (baseAmount * percentage) / 100;
-          }
-        });
+        if (distributionType === 'fixed') {
+          poolTotalTipOut += fixedAmount || 0;
+        } else if (distributionType === 'percentage' && percentage) {
+          const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
+          poolTotalTipOut += (baseAmount * percentage) / 100;
+        }
       });
-      const validTipOut = isNaN(totalTipOut) ? 0 : totalTipOut;
-      totals.set(recipientGroup.id, parseFloat(validTipOut.toFixed(2)));  
-      // totals.set(recipientGroup.id, parseFloat(totalTipOut.toFixed(2)));
     });
     
-    return totals;
-  }, [demoEntries, staffGroups]);
-
-    // PRE-CALCULATE group hour totals
-  const groupHourTotals = useMemo(() => {
-    const totals = new Map<string, number>();
+    const validPoolTotal = isNaN(poolTotalTipOut) ? 0 : parseFloat(poolTotalTipOut.toFixed(2));
+    console.log(`  Total pool amount: ${formatCurrency(validPoolTotal)}`);
     
-    staffGroups
-      .filter(g => !g.gratuityConfig.distributesGratuities)
-      .forEach(group => {
-        const groupEntries = demoEntries.filter(e => e.groupId === group.id);
-        const totalHours = groupEntries.reduce((sum, e) => sum + e.hoursWorked, 0);
-        totals.set(group.id, totalHours);
+    // Calculate total hours for ALL groups in the pool
+    let totalPoolHours = 0;
+    const groupHoursMap = new Map<string, number>();
+    
+    groupsInPool.forEach(poolGroup => {
+      const groupEntries = demoEntries.filter(e => e.groupId === poolGroup.id);
+      const groupHours = groupEntries.reduce((sum, e) => sum + (e.hoursWorked || 0), 0);
+      groupHoursMap.set(poolGroup.id, groupHours);
+      totalPoolHours += groupHours;
+      console.log(`  ${poolGroup.name} hours: ${groupHours.toFixed(2)}`);
+    });
+    
+    console.log(`  Total pool hours: ${totalPoolHours.toFixed(2)}`);
+    
+    // Split pool total proportionally by each group's hours
+    if (totalPoolHours > 0) {
+      groupsInPool.forEach(poolGroup => {
+        const groupHours = groupHoursMap.get(poolGroup.id) || 0;
+        const groupShare = (groupHours / totalPoolHours) * validPoolTotal;
+        const validGroupShare = isNaN(groupShare) ? 0 : parseFloat(groupShare.toFixed(2));
+        
+        totals.set(poolGroup.id, validGroupShare);
+        console.log(`  → ${poolGroup.name}: ${formatCurrency(validGroupShare)} (${((groupHours/totalPoolHours)*100).toFixed(1)}% of pool)`);
       });
+    } else {
+      // No hours worked - split equally
+      const equalShare = validPoolTotal / groupsInPool.length;
+      groupsInPool.forEach(poolGroup => {
+        totals.set(poolGroup.id, parseFloat(equalShare.toFixed(2)));
+        console.log(`  → ${poolGroup.name}: ${formatCurrency(equalShare)} (equal split)`);
+      });
+    }
+  });
+  
+  // Step 3: Calculate for standalone groups
+  standaloneGroups.forEach(recipientGroup => {
+    console.log(`📦 Calculating standalone: ${recipientGroup.name}`);
+    let totalTipOut = 0;
     
-    return totals;
-  }, [demoEntries, staffGroups]);
+    const sourceDistributorGroups = staffGroups.filter(g => 
+      g.gratuityConfig.distributesGratuities && 
+      g.gratuityConfig.recipientGroupIds?.includes(recipientGroup.id)
+    );
+    
+    sourceDistributorGroups.forEach(distributorGroup => {
+      const distributionType = recipientGroup.gratuityConfig.distributionType || 'percentage';
+      const percentage = recipientGroup.gratuityConfig.percentage;
+      const fixedAmount = recipientGroup.gratuityConfig.fixedAmount;
+      const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
+      
+      const distributorEntries = demoEntries.filter(e => 
+        e.groupId === distributorGroup.id && e.isDistributor
+      );
+      
+      distributorEntries.forEach(distributorEntry => {
+        const totalTips = (distributorEntry.creditCardTips || 0) + (distributorEntry.cashTips || 0);
+        const salesAmount = distributorEntry.salesAmount || 0;
+        
+        if (distributionType === 'fixed') {
+          totalTipOut += fixedAmount || 0;
+        } else if (distributionType === 'percentage' && percentage) {
+          const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
+          totalTipOut += (baseAmount * percentage) / 100;
+        }
+      });
+    });
+    
+    const validTipOut = isNaN(totalTipOut) ? 0 : parseFloat(totalTipOut.toFixed(2));
+    totals.set(recipientGroup.id, validTipOut);
+    console.log(`  Total: ${formatCurrency(validTipOut)}`);
+  });
+  
+  console.log('✅ Final totals map:', totals);
+  return totals;
+}, [demoEntries, staffGroups]);
 
   const handleGenerateData = () => {
     console.log('🎲 Generating demo data...');
@@ -460,6 +541,20 @@ export default function DemoPage() {
       return updatedEntries;
     });
   }, [staffGroups, calculateTipOutForDistributor]);
+
+  const groupHourTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    
+    staffGroups
+      .filter(g => !g.gratuityConfig.distributesGratuities)
+      .forEach(group => {
+        const groupEntries = demoEntries.filter(e => e.groupId === group.id);
+        const totalHours = groupEntries.reduce((sum, e) => sum + e.hoursWorked, 0);
+        totals.set(group.id, totalHours);
+      });
+    
+    return totals;
+  }, [demoEntries, staffGroups]);
 
   const handleClearData = () => {
     if (!confirm('Are you sure you want to clear all demo data? This cannot be undone.')) {
@@ -534,6 +629,92 @@ export default function DemoPage() {
   const totalTipOut = distributors.reduce((sum, e) => sum + (e.tipOutAmount || 0), 0);
   const expectedTipOut = totalSales * 0.035;
   
+  // Debug script for tip pooling issue
+// Run this in your browser console on the demo page
+
+  async function debugTipPools() {
+    console.log('=== TIP POOL DEBUG ===\n');
+    
+    // 1. Check what groups exist
+    const groupsRes = await fetch('/api/staff/groups');
+    const groupsData = await groupsRes.json();
+    
+    if (!groupsData.success) {
+      console.error('❌ Failed to load groups');
+      return;
+    }
+    
+    const groups = groupsData.groups;
+    console.log(`Found ${groups.length} groups:\n`);
+    
+    // 2. Check recipient groups and their pool IDs
+    const recipients = groups.filter(g => g.gratuityConfig.distributesGratuities === false);
+    
+    console.log('📋 RECIPIENT GROUPS:');
+    recipients.forEach(group => {
+      const config = group.gratuityConfig;
+      console.log(`\n${group.name}:`);
+      console.log(`  - Percentage: ${config.percentage}%`);
+      console.log(`  - Tip Pool ID: ${config.tipPoolId || 'NONE ❌'}`);
+      console.log(`  - Source Groups: ${config.sourceGroupIds?.length || 0}`);
+    });
+    
+    // 3. Find groups with same percentage
+    console.log('\n\n🔍 POOLING ANALYSIS:');
+    const percentageMap = new Map();
+    recipients.forEach(group => {
+      const pct = group.gratuityConfig.percentage;
+      if (!percentageMap.has(pct)) {
+        percentageMap.set(pct, []);
+      }
+      percentageMap.get(pct).push(group);
+    });
+    
+    percentageMap.forEach((groups, pct) => {
+      if (groups.length > 1) {
+        console.log(`\n${pct}% Groups (${groups.length}):`);
+        groups.forEach(g => {
+          const poolId = g.gratuityConfig.tipPoolId;
+          console.log(`  - ${g.name}: Pool ID = ${poolId || 'NONE ❌'}`);
+        });
+        
+        // Check if they share the same pool ID
+        const poolIds = groups.map(g => g.gratuityConfig.tipPoolId).filter(Boolean);
+        const uniquePoolIds = new Set(poolIds);
+        
+        if (uniquePoolIds.size === 0) {
+          console.log('  ⚠️ NO POOL IDs - Groups are NOT pooled');
+        } else if (uniquePoolIds.size === 1) {
+          console.log(`  ✅ POOLED - All share: ${[...uniquePoolIds][0]}`);
+        } else {
+          console.log(`  ❌ PROBLEM - Different pool IDs: ${[...uniquePoolIds].join(', ')}`);
+        }
+      }
+    });
+    
+    // 4. Check distributor groups
+    console.log('\n\n📊 DISTRIBUTOR GROUPS:');
+    const distributors = groups.filter(g => g.gratuityConfig.distributesGratuities === true);
+    distributors.forEach(group => {
+      const config = group.gratuityConfig;
+      console.log(`\n${group.name}:`);
+      console.log(`  - Distribution Basis: ${config.distributionBasis}`);
+      console.log(`  - Recipient Count: ${config.recipientGroupIds?.length || 0}`);
+      if (config.recipientGroupIds) {
+        config.recipientGroupIds.forEach(recId => {
+          const recGroup = groups.find(g => g.id === recId);
+          if (recGroup) {
+            console.log(`    → ${recGroup.name} (${recGroup.gratuityConfig.percentage}%, Pool: ${recGroup.gratuityConfig.tipPoolId || 'NONE'})`);
+          }
+        });
+      }
+    });
+    
+    console.log('\n=== END DEBUG ===');
+  }
+
+  // Run it
+  debugTipPools();
   console.log('📊 VERIFICATION RESULTS:');
   console.log('========================');
   console.log('Total Sales:', formatCurrency(totalSales));

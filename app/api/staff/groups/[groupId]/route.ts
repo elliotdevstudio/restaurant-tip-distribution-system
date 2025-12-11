@@ -4,11 +4,12 @@ import { StaffService } from '../../../../lib/services/staffService';
 // GET single staff group
 export async function GET(
   request: NextRequest,
-  { params }: { params: { groupId: string } }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
+    const { groupId } = await params; // ✅ Await params
     const groups = await StaffService.getAllStaffGroups();
-    const group = groups.find(g => g.id === params.groupId);
+    const group = groups.find(g => g.id === groupId);
 
     if (!group) {
       return NextResponse.json(
@@ -33,13 +34,14 @@ export async function GET(
 // UPDATE staff group
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { groupId: string } }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
+    const { groupId } = await params; // ✅ Await params
     const updates = await request.json();
-    console.log('📨 Received group update request:', { groupId: params.groupId, updates });
+    console.log('📨 Received group update request:', { groupId, updates });
 
-    const updatedGroup = await StaffService.updateStaffGroup(params.groupId, updates);
+    const updatedGroup = await StaffService.updateStaffGroup(groupId, updates);
 
     return NextResponse.json({
       group: updatedGroup,
@@ -62,10 +64,11 @@ export async function PUT(
 // DELETE staff group
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { groupId: string } }
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
-    await StaffService.deleteStaffGroup(params.groupId);
+    const { groupId } = await params; // ✅ Await params
+    await StaffService.deleteStaffGroup(groupId);
 
     return NextResponse.json({
       success: true,

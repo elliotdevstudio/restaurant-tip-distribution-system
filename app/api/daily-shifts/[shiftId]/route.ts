@@ -4,18 +4,17 @@ import { StaffService } from '../../../lib/services/staffService';
 // GET single daily shift
 export async function GET(
   request: NextRequest,
-  { params }: { params: { shiftId: string } }
+  { params }: { params: Promise<{ shiftId: string }> }
 ) {
   try {
-    const shift = await StaffService.getDailyShiftById(params.shiftId);
-
+    const { shiftId } = await params;
+    const shift = await StaffService.getDailyShiftById(shiftId);
     if (!shift) {
       return NextResponse.json(
         { success: false, message: 'Shift not found' },
         { status: 404 }
       );
     }
-
     return NextResponse.json({ success: true, shift });
   } catch (error) {
     console.error('Error fetching daily shift:', error);
@@ -29,11 +28,12 @@ export async function GET(
 // DELETE daily shift
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { shiftId: string } }
+  { params }: { params: Promise<{ shiftId: string }> }
 ) {
   try {
-    await StaffService.deleteDailyShift(params.shiftId);
-    return NextResponse.json({ 
+    const { shiftId } = await params;
+    await StaffService.deleteDailyShift(shiftId);
+    return NextResponse.json({
       success: true,
       message: 'Daily shift deleted successfully'
     });

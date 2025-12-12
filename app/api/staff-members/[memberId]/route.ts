@@ -4,19 +4,20 @@ import { StaffService } from '../../../lib/services/staffService';
 // GET single staff member
 export async function GET(
   request: NextRequest,
-  { params }: { params: { memberId: string } }
+  { params }: { params: Promise<{ memberId: string }> }
 ) {
   try {
+    const { memberId } = await params;
     const members = await StaffService.getAllStaffMembers();
-    const member = members.find(m => m.id === params.memberId);
-
+    const member = members.find(m => m.id === memberId);
+    
     if (!member) {
       return NextResponse.json(
         { success: false, message: 'Staff member not found' },
         { status: 404 }
       );
     }
-
+    
     return NextResponse.json({ success: true, member });
   } catch (error) {
     console.error('Error fetching staff member:', error);
@@ -30,19 +31,20 @@ export async function GET(
 // PUT update staff member
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { memberId: string } }
+  { params }: { params: Promise<{ memberId: string }> }
 ) {
   try {
+    const { memberId } = await params;
     const body = await request.json();
     const { firstName, lastName } = body;
-
-    const updatedMember = await StaffService.updateStaffMember(params.memberId, {
+    
+    const updatedMember = await StaffService.updateStaffMember(memberId, {
       firstName,
       lastName,
     });
-
-    return NextResponse.json({ 
-      success: true, 
+    
+    return NextResponse.json({
+      success: true,
       member: updatedMember,
       message: 'Staff member updated successfully'
     });
@@ -58,11 +60,13 @@ export async function PUT(
 // DELETE staff member
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { memberId: string } }
+  { params }: { params: Promise<{ memberId: string }> }
 ) {
   try {
-    await StaffService.deleteStaffMember(params.memberId);
-    return NextResponse.json({ 
+    const { memberId } = await params;
+    await StaffService.deleteStaffMember(memberId);
+    
+    return NextResponse.json({
       success: true,
       message: 'Staff member deleted successfully'
     });

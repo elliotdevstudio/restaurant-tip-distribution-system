@@ -1,0 +1,45 @@
+name: Daily Shift Maintenance
+
+on:
+  # Runs every day at midnight UTC
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Allows manual triggering from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Run Daily Maintenance
+        id: maintenance
+        run: |
+          echo "🔄 Running daily maintenance..."
+          response=$(curl -X POST ${{ secrets.APP_URL }}/api/admin/daily-maintenance \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --silent --show-error --fail --write-out "\n%{http_code}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Maintenance completed successfully"
+            echo "$body"
+          else
+            echo "❌ Maintenance failed with status code: $http_code"
+            echo "$body"
+            exit 1
+          fi
+        
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "⚠️ Daily maintenance failed! Check the logs above for details."
+          echo "This could be due to:"
+          echo "  - APP_URL is incorrect"
+          echo "  - CRON_SECRET doesn't match"
+          echo "  - App is not deployed or not accessible"
+          echo "  - Database connection failed"

@@ -4,10 +4,11 @@ import { StaffService } from '../../../../lib/services/staffService';
 // POST close a daily shift
 export async function POST(
   request: NextRequest,
-  { params }: { params: { shiftId: string } }
+  { params }: { params: Promise<{ shiftId: string }> }
 ) {
   try {
-    const closedShift = await StaffService.closeDailyShift(params.shiftId);
+    const { shiftId } = await params;
+    const closedShift = await StaffService.closeDailyShift(shiftId);
     return NextResponse.json({ 
       success: true, 
       shift: closedShift,

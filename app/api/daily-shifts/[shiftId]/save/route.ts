@@ -4,26 +4,27 @@ import { StaffService } from '../../../../lib/services/staffService';
 // POST save complete daily shift data
 export async function POST(
   request: NextRequest,
-  { params }: { params: { shiftId: string } }
+  { params }: { params: Promise<{ shiftId: string }> }
 ) {
   try {
+    const { shiftId } = await params;
     const body = await request.json();
     const { staffData, groupSummaries, shiftTotals } = body;
-
+    
     if (!staffData || !groupSummaries || !shiftTotals) {
       return NextResponse.json(
         { success: false, message: 'Missing required data (staffData, groupSummaries, or shiftTotals)' },
         { status: 400 }
       );
     }
-
+    
     const updatedShift = await StaffService.saveCompleteDailyShift(
-      params.shiftId,
+      shiftId,
       { staffData, groupSummaries, shiftTotals }
     );
-
-    return NextResponse.json({ 
-      success: true, 
+    
+    return NextResponse.json({
+      success: true,
       shift: updatedShift,
       message: 'Daily shift data saved successfully'
     });

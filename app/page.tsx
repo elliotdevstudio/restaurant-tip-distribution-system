@@ -15,16 +15,16 @@ interface DashboardCardProps {
   description: string;
   href: string;
   icon: React.ReactNode;
-  color: string;
+  colorClass: string;
 }
 
-function DashboardCard({ title, description, href, icon, color }: DashboardCardProps) {
+function DashboardCard({ title, description, href, icon, colorClass }: DashboardCardProps) {
   return (
     <Link href={href}>
-      <div className="group relative bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-all duration-200 cursor-pointer h-full border border-gray-200 hover:border-blue-500">
+      <div className="group relative bg-white rounded-lg border-2 border-gray-200 hover:border-blue-500 shadow-md hover:shadow-lg p-6 cursor-pointer h-full transition-all duration-200">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg ${color} mb-4`}>
+            <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg mb-4 ${colorClass}`}>
               {icon}
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
@@ -36,7 +36,7 @@ function DashboardCard({ title, description, href, icon, color }: DashboardCardP
           </div>
           <div className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
             <svg 
-              className="w-5 h-5 text-blue-600" 
+              className="w-5 h-5 text-blue-500"
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
@@ -105,28 +105,28 @@ export default function DashboardPage() {
       description: 'Manage your restaurant staff members, add new employees, and update their information.',
       href: '/staff/members',
       icon: <Users className="w-6 h-6 text-blue-600" />,
-      color: 'bg-blue-50'
+      colorClass: 'bg-blue-50'
     },
     {
       title: 'Staff Groups',
       description: 'Create and manage staff groups, configure tip distribution settings, and set up tip pooling.',
       href: '/staff/groups',
       icon: <UsersRound className="w-6 h-6 text-purple-600" />,
-      color: 'bg-purple-50'
+      colorClass: 'bg-purple-50'
     },
     {
       title: 'Daily Shift Generator',
       description: 'Generate and manage daily shifts, enter sales and tip data, and calculate distributions.',
       href: '/demo',
       icon: <Calendar className="w-6 h-6 text-green-600" />,
-      color: 'bg-green-50'
+      colorClass: 'bg-green-50'
     },
     {
       title: 'Shift Reports',
       description: 'View historical shift data, analyze tip distribution patterns, and generate reports.',
       href: '/shifts',
       icon: <FileText className="w-6 h-6 text-orange-600" />,
-      color: 'bg-orange-50'
+      colorClass: 'bg-orange-50'
     }
   ];
 
@@ -156,7 +156,7 @@ export default function DashboardPage() {
 
       {/* Quick Stats Section */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4 border-b pb-2">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4 border-b border-gray-200 pb-2">
           Quick Overview
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

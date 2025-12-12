@@ -836,50 +836,6 @@ export class StaffService {
     console.log('✅ Successfully deleted staff group');
   }
 
-  static async generateHistoricalShifts(): Promise<void> {
-    const db = await this.getDb();
-    
-    console.log('📅 Generating 90 days of historical shift data...');
-    
-    // Get all staff members and groups
-    const staffMembers = await this.getAllStaffMembers();
-    const staffGroups = await this.getAllStaffGroups();
-    
-    if (staffMembers.length === 0 || staffGroups.length === 0) {
-      console.log('⚠️  No staff or groups found. Please seed initial data first.');
-      return;
-    }
-    
-    // Generate data for last 90 days
-    const today = new Date();
-    const shiftsToCreate = [];
-    
-    for (let daysAgo = 89; daysAgo >= 0; daysAgo--) {
-      const shiftDate = new Date(today);
-      shiftDate.setDate(today.getDate() - daysAgo);
-      shiftDate.setHours(0, 0, 0, 0); // Normalize to midnight
-      
-      const dayOfWeek = shiftDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const isClosed = dayOfWeek === 1 || dayOfWeek === 2; // Monday or Tuesday
-      
-      // Create shift for this date
-      const shift = await this.generateShiftForDate(
-        shiftDate, 
-        staffMembers, 
-        staffGroups, 
-        isClosed
-      );
-      
-      shiftsToCreate.push(shift);
-    }
-    
-    // Insert all shifts at once
-    const result = await db.collection('daily_shifts').insertMany(shiftsToCreate);
-    
-    console.log(`✅ Generated ${result.insertedCount} historical shifts (90 days)`);
-    console.log(`📊 Closed days (Mon/Tue): ${shiftsToCreate.filter(s => s.status === 'closed').length}`);
-    console.log(`📊 Open days: ${shiftsToCreate.filter(s => s.status === 'completed').length}`);
-  }
   
   /**
    * Generate a single shift for a specific date

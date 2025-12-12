@@ -1,4 +1,5 @@
 import { MongoClient, MongoClientOptions, Db, BSON } from 'mongodb';
+import { ObjectId } from 'mongodb';
 
 interface ShiftDocument {
   _id?: ObjectId;

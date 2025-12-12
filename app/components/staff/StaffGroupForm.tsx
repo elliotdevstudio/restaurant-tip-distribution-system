@@ -4,7 +4,7 @@ import { useAtom } from 'jotai';
 import { useAtomValue } from 'jotai';
 import { useState, useEffect } from 'react';
 import { staffGroupFormAtom, staffGroupsAtom, nestedGroupCreationAtom } from '../../atoms/staffAtoms';
-import { AnyStaffGroup, CreateStaffGroupRequest, StaffGroupFormState } from '../../../types';
+import { StaffMember, AnyStaffGroup, CreateStaffGroupRequest, StaffGroupFormState } from '../../../types';
 import { createStaffGroup, updateStaffGroup } from '../../lib/hooks/useStaffData';
 import StaffMemberSelector from './StaffMemberSelector';
 import GratuityConfigStep from './GratuityConfigStep';

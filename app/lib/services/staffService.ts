@@ -76,6 +76,8 @@ export class StaffService {
     }
   }
 
+// CREATE
+
   static async createStaffMember(
   firstName: string,
   lastName: string,
@@ -102,7 +104,53 @@ export class StaffService {
       console.log('✅ Successfully created staff member');
       return transformStaffMember(created);
     }
-  
+
+  // UPDATE
+
+  static async updateStaffMember(
+    memberId: string,
+    updates: { firstName: string; lastName: string }
+  ): Promise<StaffMemberWithId> {
+    const db = await this.getDb();
+    const { firstName, lastName } = updates;
+    
+    const result = await db.collection<StaffMemberDocument>('staff_members').findOneAndUpdate(
+      { _id: new ObjectId(memberId) },
+      { 
+        $set: { 
+          firstName, 
+          lastName,
+          updatedAt: new Date()
+        } 
+      },
+      { returnDocument: 'after' }
+    );
+    
+    if (!result) {
+      throw new Error('Staff member not found');
+    }
+    
+    return {
+      id: result._id.toString(),
+      firstName: result.firstName,
+      lastName: result.lastName,
+      dateCreated: result.dateCreated,
+    };
+  }
+
+  // DELETE
+
+  static async deleteStaffMember(memberId: string): Promise<void> {
+    const db = await this.getDb();
+    
+    const result = await db.collection<StaffMemberDocument>('staff_members').deleteOne({
+      _id: new ObjectId(memberId)
+    });
+    
+    if (result.deletedCount === 0) {
+      throw new Error('Staff member not found');
+    }
+  }
 
   static async getAllStaffGroups(): Promise<StaffGroupWithId[]> {
     console.log('📋 Fetching all staff groups...');
@@ -732,11 +780,11 @@ export class StaffService {
       const newSources = updates.gratuityConfig.sourceGroupIds || [];
 
       // UPDATE RECIPIENT CONNECTIONS
-      const recipientsToAdd = newRecipients.filter(id => !currentRecipients.includes(id));
+      const recipientsToAdd = newRecipients.filter((id: string) => !currentRecipients.includes(id));
       const recipientsToRemove = currentRecipients.filter(id => !newRecipients.includes(id));
 
       // UPDATE SOURCE CONNECTIONS
-      const sourcesToAdd = newSources.filter(id => !currentSources.includes(id));
+      const sourcesToAdd = newSources.filter((id: string) => !currentSources.includes(id));
       const sourcesToRemove = currentSources.filter(id => !newSources.includes(id));
 
       // Apply bidirectional updates
@@ -788,361 +836,355 @@ export class StaffService {
     console.log('✅ Successfully deleted staff group');
   }
 
-  static async seedInitialData(): Promise<void> {
-  console.log('🌱 Checking if seeding is needed...');
-  const db = await this.getDb();
-  
-  const existingCount = await db.collection('staff_members').countDocuments();
-  console.log(`📊 Existing members: ${existingCount}`);
-  
-  if (existingCount > 0) {
-    console.log('✅ Data already exists');
-    return;
-  }
-
-  console.log('🌱 Starting seeding...');
-  
-  try {
-    const { mockStaffMembers } = await import('../../../mock-data');
-    console.log(`📋 Loaded ${mockStaffMembers.length} members from mock data`);
+  static async generateHistoricalShifts(): Promise<void> {
+    const db = await this.getDb();
     
-    const membersToInsert: StaffMemberDocument[] = mockStaffMembers.map(member => ({
-      firstName: member.firstName,
-      lastName: member.lastName,
-      dateCreated: member.dateCreated,
-    }));
-
-    const result = await db.collection<StaffMemberDocument>('staff_members').insertMany(membersToInsert);
-    console.log(`✅ Successfully seeded ${result.insertedCount} members`);
+    console.log('📅 Generating 90 days of historical shift data...');
     
-  } catch (error) {
-    console.error('❌ Seeding failed:', error);
-    throw error;
-  }
-  }
-
-  static async forceSeedData(): Promise<void> {
-    console.log('🔄 === FORCE SEEDING ===');
+    // Get all staff members and groups
+    const staffMembers = await this.getAllStaffMembers();
+    const staffGroups = await this.getAllStaffGroups();
     
-    try {
-      const db = await this.getDb();
-      
-      // Clear existing
-      console.log('🗑️ Clearing existing data...');
-      const deleted = await db.collection('staff_members').deleteMany({});
-      console.log(`🗑️ Deleted ${deleted.deletedCount} existing members`);
-      
-      // Re-seed
-      await this.seedInitialData();
-      
-    } catch (error) {
-      console.error('❌ Force seeding failed:', error);
-      throw error;
+    if (staffMembers.length === 0 || staffGroups.length === 0) {
+      console.log('⚠️  No staff or groups found. Please seed initial data first.');
+      return;
     }
+    
+    // Generate data for last 90 days
+    const today = new Date();
+    const shiftsToCreate = [];
+    
+    for (let daysAgo = 89; daysAgo >= 0; daysAgo--) {
+      const shiftDate = new Date(today);
+      shiftDate.setDate(today.getDate() - daysAgo);
+      shiftDate.setHours(0, 0, 0, 0); // Normalize to midnight
+      
+      const dayOfWeek = shiftDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const isClosed = dayOfWeek === 1 || dayOfWeek === 2; // Monday or Tuesday
+      
+      // Create shift for this date
+      const shift = await this.generateShiftForDate(
+        shiftDate, 
+        staffMembers, 
+        staffGroups, 
+        isClosed
+      );
+      
+      shiftsToCreate.push(shift);
+    }
+    
+    // Insert all shifts at once
+    const result = await db.collection('daily_shifts').insertMany(shiftsToCreate);
+    
+    console.log(`✅ Generated ${result.insertedCount} historical shifts (90 days)`);
+    console.log(`📊 Closed days (Mon/Tue): ${shiftsToCreate.filter(s => s.status === 'closed').length}`);
+    console.log(`📊 Open days: ${shiftsToCreate.filter(s => s.status === 'completed').length}`);
   }
+  
   /**
- * Generate 90 days of historical shift data for demo purposes
- * Monday/Tuesday = closed (all zeros)
- * Wed-Sun = realistic data
- */
-static async generateHistoricalShifts(): Promise<void> {
-  const db = await this.getDb();
-  
-  console.log('📅 Generating 90 days of historical shift data...');
-  
-  // Get all staff members and groups
-  const staffMembers = await this.getAllStaffMembers();
-  const staffGroups = await this.getAllStaffGroups();
-  
-  if (staffMembers.length === 0 || staffGroups.length === 0) {
-    console.log('⚠️  No staff or groups found. Please seed initial data first.');
-    return;
-  }
-  
-  // Generate data for last 90 days
-  const today = new Date();
-  const shiftsToCreate = [];
-  
-  for (let daysAgo = 89; daysAgo >= 0; daysAgo--) {
-    const shiftDate = new Date(today);
-    shiftDate.setDate(today.getDate() - daysAgo);
-    shiftDate.setHours(0, 0, 0, 0); // Normalize to midnight
+   * Generate a single shift for a specific date
+   */
+  private static async generateShiftForDate(
+    date: Date,
+    staffMembers: any[],
+    staffGroups: any[],
+    isClosed: boolean
+  ): Promise<any> {
     
-    const dayOfWeek = shiftDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const isClosed = dayOfWeek === 1 || dayOfWeek === 2; // Monday or Tuesday
+    if (isClosed) {
+      // Closed day - all zeros
+      return {
+        date: date,
+        type: 'FULL_DAY',
+        status: 'closed',
+        staffData: [],
+        groupSummaries: [],
+        shiftTotals: {
+          totalTipsCollected: 0,
+          totalDistributed: 0,
+          totalKeptByDistributors: 0,
+          totalReceivedByRecipients: 0,
+          totalHoursWorked: 0,
+          activeStaffCount: 0,
+          activeGroupCount: 0
+        },
+        createdAt: date,
+        updatedAt: date
+      };
+    }
     
-    // Create shift for this date
-    const shift = await this.generateShiftForDate(
-      shiftDate, 
-      staffMembers, 
-      staffGroups, 
-      isClosed
-    );
+    // Open day - generate realistic data
+    const staffData: any[] = [];
+    const groupSummariesMap = new Map<string, any>();
     
-    shiftsToCreate.push(shift);
-  }
-  
-  // Insert all shifts at once
-  const result = await db.collection('daily_shifts').insertMany(shiftsToCreate);
-  
-  console.log(`✅ Generated ${result.insertedCount} historical shifts (90 days)`);
-  console.log(`📊 Closed days (Mon/Tue): ${shiftsToCreate.filter(s => s.status === 'closed').length}`);
-  console.log(`📊 Open days: ${shiftsToCreate.filter(s => s.status === 'completed').length}`);
-}
-
-/**
- * Generate a single shift for a specific date
- */
-private static async generateShiftForDate(
-  date: Date,
-  staffMembers: any[],
-  staffGroups: any[],
-  isClosed: boolean
-): Promise<any> {
-  
-  if (isClosed) {
-    // Closed day - all zeros
+    // Generate data for each staff member
+    staffMembers.forEach(member => {
+      const memberGroups = staffGroups.filter(g => 
+        g.staffMemberIds.includes(member.id)
+      );
+      
+      if (memberGroups.length === 0) return;
+      
+      const group = memberGroups[0];
+      const isDistributor = group.gratuityConfig.distributesGratuities;
+      
+      // Random hours worked (4-8 hours, with some variation)
+      const hoursWorked = this.generateRandomHours(4, 8);
+      
+      const staffEntry: any = {
+        staffId: member.id,
+        staffName: `${member.firstName} ${member.lastName}`,
+        groupId: group.id,
+        groupName: group.name,
+        hoursWorked: hoursWorked,
+        isDistributor: isDistributor
+      };
+      
+      if (isDistributor) {
+        // Generate sales and tips
+        const salesData = this.generateRealisticSalesData();
+        staffEntry.salesAmount = salesData.salesAmount;
+        staffEntry.creditCardTips = salesData.creditCardTips;
+        staffEntry.cashTips = salesData.cashTips || 0;
+        staffEntry.totalTips = salesData.creditCardTips + (salesData.cashTips || 0);
+        
+        // Calculate tip out
+        staffEntry.tipOutAmount = this.calculateTipOutForDistributor(
+          salesData.salesAmount,
+          staffEntry.totalTips,
+          group,
+          staffGroups
+        );
+        
+        staffEntry.netTips = staffEntry.totalTips - staffEntry.tipOutAmount;
+      }
+      
+      staffData.push(staffEntry);
+      
+      // Update group summaries
+      if (!groupSummariesMap.has(group.id)) {
+        groupSummariesMap.set(group.id, {
+          groupId: group.id,
+          groupName: group.name,
+          totalTips: 0,
+          totalHours: 0,
+          memberCount: 0
+        });
+      }
+      
+      const summary = groupSummariesMap.get(group.id);
+      summary.totalHours += hoursWorked;
+      summary.memberCount += 1;
+      if (staffEntry.totalTips) {
+        summary.totalTips += staffEntry.totalTips;
+      }
+    });
+    
+    // Calculate shift totals
+    const shiftTotals = {
+      totalTipsCollected: staffData
+        .filter(s => s.isDistributor)
+        .reduce((sum, s) => sum + (s.totalTips || 0), 0),
+      totalDistributed: staffData
+        .filter(s => s.isDistributor)
+        .reduce((sum, s) => sum + (s.tipOutAmount || 0), 0),
+      totalKeptByDistributors: staffData
+        .filter(s => s.isDistributor)
+        .reduce((sum, s) => sum + (s.netTips || 0), 0),
+      totalReceivedByRecipients: 0, // Would need to calculate based on recipient shares
+      totalHoursWorked: staffData.reduce((sum, s) => sum + s.hoursWorked, 0),
+      activeStaffCount: staffData.length,
+      activeGroupCount: groupSummariesMap.size
+    };
+    
     return {
       date: date,
       type: 'FULL_DAY',
-      status: 'closed',
-      staffData: [],
-      groupSummaries: [],
-      shiftTotals: {
-        totalTipsCollected: 0,
-        totalDistributed: 0,
-        totalKeptByDistributors: 0,
-        totalReceivedByRecipients: 0,
-        totalHoursWorked: 0,
-        activeStaffCount: 0,
-        activeGroupCount: 0
-      },
+      status: 'completed',
+      staffData: staffData,
+      groupSummaries: Array.from(groupSummariesMap.values()),
+      shiftTotals: shiftTotals,
       createdAt: date,
       updatedAt: date
     };
   }
   
-  // Open day - generate realistic data
-  const staffData: any[] = [];
-  const groupSummariesMap = new Map<string, any>();
+  /**
+   * Generate realistic sales data for a distributor
+   */
+  private static generateRealisticSalesData(): {
+    salesAmount: number;
+    creditCardTips: number;
+    cashTips: number;
+    tipPercent: number;
+  } {
+    const minSales = 949.99;
+    const maxSales = 2499.99;
+    const minTipPercent = 0.17;
+    const maxTipPercent = 0.23;
   
-  // Generate data for each staff member
-  staffMembers.forEach(member => {
-    const memberGroups = staffGroups.filter(g => 
-      g.staffMemberIds.includes(member.id)
+    const salesAmount = parseFloat(
+      (Math.random() * (maxSales - minSales) + minSales).toFixed(2)
+    );
+  
+    const tipPercent = Math.random() * (maxTipPercent - minTipPercent) + minTipPercent;
+    const creditCardTips = parseFloat((salesAmount * tipPercent).toFixed(2));
+    const cashTips = 0;
+  
+    return { 
+      salesAmount, 
+      creditCardTips, 
+      cashTips,
+      tipPercent 
+    };
+  }
+  
+  /**
+   * Generate random hours worked
+   */
+  private static generateRandomHours(min: number, max: number): number {
+    return parseFloat((Math.random() * (max - min) + min).toFixed(2));
+  }
+  
+  /**
+   * Calculate tip out for a distributor (import from tipCalculations.ts)
+   */
+  private static calculateTipOutForDistributor(
+    salesAmount: number,
+    totalTips: number,
+    distributorGroup: any,
+    allGroups: any[]
+  ): number {
+    // This should match your existing calculation logic
+    // For now, simplified version:
+    let totalTipOut = 0;
+    
+    if (!distributorGroup.gratuityConfig.recipientGroupIds) {
+      return 0;
+    }
+    
+    distributorGroup.gratuityConfig.recipientGroupIds.forEach((recipientId: string) => {
+      const recipientGroup = allGroups.find(g => g.id === recipientId);
+      if (!recipientGroup) return;
+      
+      const distributionType = recipientGroup.gratuityConfig.distributionType || 'percentage';
+      const percentage = recipientGroup.gratuityConfig.percentage;
+      const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
+      
+      if (distributionType === 'percentage' && percentage) {
+        const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
+        totalTipOut += baseAmount * (percentage / 100);
+      }
+    });
+    
+    return parseFloat(totalTipOut.toFixed(2));
+  }
+  
+  /**
+   * Daily maintenance: Remove shifts older than 90 days and create today's shift
+   */
+  static async performDailyMaintenance(): Promise<void> {
+    const db = await this.getDb();
+    
+    console.log('🔧 Running daily maintenance...');
+    
+    // 1. Delete shifts older than 90 days
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    ninetyDaysAgo.setHours(0, 0, 0, 0);
+    
+    const deleteResult = await db.collection('daily_shifts').deleteMany({
+      date: { $lt: ninetyDaysAgo }
+    });
+    
+    console.log(`🗑️  Deleted ${deleteResult.deletedCount} shifts older than 90 days`);
+    
+    // 2. Check if today's shift already exists
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const existingShift = await db.collection('daily_shifts').findOne({ date: today });
+    
+    if (existingShift) {
+      console.log('✅ Today\'s shift already exists, skipping creation');
+      return;
+    }
+    
+    // 3. Create today's shift
+    const staffMembers = await this.getAllStaffMembers();
+    const staffGroups = await this.getAllStaffGroups();
+    
+    const dayOfWeek = today.getDay();
+    const isClosed = dayOfWeek === 1 || dayOfWeek === 2; // Monday or Tuesday
+    
+    const todayShift = await this.generateShiftForDate(
+      today,
+      staffMembers,
+      staffGroups,
+      isClosed
     );
     
-    if (memberGroups.length === 0) return;
+    await db.collection('daily_shifts').insertOne(todayShift);
     
-    const group = memberGroups[0];
-    const isDistributor = group.gratuityConfig.distributesGratuities;
-    
-    // Random hours worked (4-8 hours, with some variation)
-    const hoursWorked = this.generateRandomHours(4, 8);
-    
-    const staffEntry: any = {
-      staffId: member.id,
-      staffName: `${member.firstName} ${member.lastName}`,
-      groupId: group.id,
-      groupName: group.name,
-      hoursWorked: hoursWorked,
-      isDistributor: isDistributor
-    };
-    
-    if (isDistributor) {
-      // Generate sales and tips
-      const salesData = this.generateRealisticSalesData();
-      staffEntry.salesAmount = salesData.salesAmount;
-      staffEntry.creditCardTips = salesData.creditCardTips;
-      staffEntry.cashTips = salesData.cashTips || 0;
-      staffEntry.totalTips = salesData.creditCardTips + (salesData.cashTips || 0);
-      
-      // Calculate tip out
-      staffEntry.tipOutAmount = this.calculateTipOutForDistributor(
-        salesData.salesAmount,
-        staffEntry.totalTips,
-        group,
-        staffGroups
-      );
-      
-      staffEntry.netTips = staffEntry.totalTips - staffEntry.tipOutAmount;
-    }
-    
-    staffData.push(staffEntry);
-    
-    // Update group summaries
-    if (!groupSummariesMap.has(group.id)) {
-      groupSummariesMap.set(group.id, {
-        groupId: group.id,
-        groupName: group.name,
-        totalTips: 0,
-        totalHours: 0,
-        memberCount: 0
-      });
-    }
-    
-    const summary = groupSummariesMap.get(group.id);
-    summary.totalHours += hoursWorked;
-    summary.memberCount += 1;
-    if (staffEntry.totalTips) {
-      summary.totalTips += staffEntry.totalTips;
-    }
-  });
-  
-  // Calculate shift totals
-  const shiftTotals = {
-    totalTipsCollected: staffData
-      .filter(s => s.isDistributor)
-      .reduce((sum, s) => sum + (s.totalTips || 0), 0),
-    totalDistributed: staffData
-      .filter(s => s.isDistributor)
-      .reduce((sum, s) => sum + (s.tipOutAmount || 0), 0),
-    totalKeptByDistributors: staffData
-      .filter(s => s.isDistributor)
-      .reduce((sum, s) => sum + (s.netTips || 0), 0),
-    totalReceivedByRecipients: 0, // Would need to calculate based on recipient shares
-    totalHoursWorked: staffData.reduce((sum, s) => sum + s.hoursWorked, 0),
-    activeStaffCount: staffData.length,
-    activeGroupCount: groupSummariesMap.size
-  };
-  
-  return {
-    date: date,
-    type: 'FULL_DAY',
-    status: 'completed',
-    staffData: staffData,
-    groupSummaries: Array.from(groupSummariesMap.values()),
-    shiftTotals: shiftTotals,
-    createdAt: date,
-    updatedAt: date
-  };
-}
-
-/**
- * Generate realistic sales data for a distributor
- */
-private static generateRealisticSalesData(): {
-  salesAmount: number;
-  creditCardTips: number;
-  cashTips: number;
-  tipPercent: number;
-} {
-  const minSales = 949.99;
-  const maxSales = 2499.99;
-  const minTipPercent = 0.17;
-  const maxTipPercent = 0.23;
-
-  const salesAmount = parseFloat(
-    (Math.random() * (maxSales - minSales) + minSales).toFixed(2)
-  );
-
-  const tipPercent = Math.random() * (maxTipPercent - minTipPercent) + minTipPercent;
-  const creditCardTips = parseFloat((salesAmount * tipPercent).toFixed(2));
-  const cashTips = 0;
-
-  return { 
-    salesAmount, 
-    creditCardTips, 
-    cashTips,
-    tipPercent 
-  };
-}
-
-/**
- * Generate random hours worked
- */
-private static generateRandomHours(min: number, max: number): number {
-  return parseFloat((Math.random() * (max - min) + min).toFixed(2));
-}
-
-/**
- * Calculate tip out for a distributor (import from tipCalculations.ts)
- */
-private static calculateTipOutForDistributor(
-  salesAmount: number,
-  totalTips: number,
-  distributorGroup: any,
-  allGroups: any[]
-): number {
-  // This should match your existing calculation logic
-  // For now, simplified version:
-  let totalTipOut = 0;
-  
-  if (!distributorGroup.gratuityConfig.recipientGroupIds) {
-    return 0;
+    console.log(`✅ Created shift for ${today.toISOString().split('T')[0]} (${isClosed ? 'CLOSED' : 'OPEN'})`);
   }
   
-  distributorGroup.gratuityConfig.recipientGroupIds.forEach((recipientId: string) => {
-    const recipientGroup = allGroups.find(g => g.id === recipientId);
-    if (!recipientGroup) return;
-    
-    const distributionType = recipientGroup.gratuityConfig.distributionType || 'percentage';
-    const percentage = recipientGroup.gratuityConfig.percentage;
-    const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
-    
-    if (distributionType === 'percentage' && percentage) {
-      const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
-      totalTipOut += baseAmount * (percentage / 100);
-    }
-  });
-  
-  return parseFloat(totalTipOut.toFixed(2));
-}
-
-/**
- * Daily maintenance: Remove shifts older than 90 days and create today's shift
- */
-static async performDailyMaintenance(): Promise<void> {
-  const db = await this.getDb();
-  
-  console.log('🔧 Running daily maintenance...');
-  
-  // 1. Delete shifts older than 90 days
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  ninetyDaysAgo.setHours(0, 0, 0, 0);
-  
-  const deleteResult = await db.collection('daily_shifts').deleteMany({
-    date: { $lt: ninetyDaysAgo }
-  });
-  
-  console.log(`🗑️  Deleted ${deleteResult.deletedCount} shifts older than 90 days`);
-  
-  // 2. Check if today's shift already exists
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const existingShift = await db.collection('daily_shifts').findOne({ date: today });
-  
-  if (existingShift) {
-    console.log('✅ Today\'s shift already exists, skipping creation');
-    return;
   }
   
-  // 3. Create today's shift
-  const staffMembers = await this.getAllStaffMembers();
-  const staffGroups = await this.getAllStaffGroups();
+  // static async seedInitialData(): Promise<void> {
+  // console.log('🌱 Checking if seeding is needed...');  
+  // const db = await this.getDb();
   
-  const dayOfWeek = today.getDay();
-  const isClosed = dayOfWeek === 1 || dayOfWeek === 2; // Monday or Tuesday
+  // const existingCount = await db.collection('staff_members').countDocuments();
+  // console.log(`📊 Existing members: ${existingCount}`);
   
-  const todayShift = await this.generateShiftForDate(
-    today,
-    staffMembers,
-    staffGroups,
-    isClosed
-  );
+  // if (existingCount > 0) {
+  //   console.log('✅ Data already exists');  
+  //   return;
+  // }
+
+  // console.log('🌱 Starting seeding...');
   
-  await db.collection('daily_shifts').insertOne(todayShift);
-  
-  console.log(`✅ Created shift for ${today.toISOString().split('T')[0]} (${isClosed ? 'CLOSED' : 'OPEN'})`);
-}
+  // try {
+  //   const { mockStaffMembers } = await import('../../../mock-data');  
+  //   console.log(`📋 Loaded ${mockStaffMembers.length} members from mock data`);
+    
+  //   const membersToInsert: StaffMemberDocument[] = mockStaffMembers.map(member => ({
+  //     firstName: member.firstName,  
+  //     lastName: member.lastName,
+  //     dateCreated: member.dateCreated,
+  //   }));
 
-}
+  //   const result = await db.collection<StaffMemberDocument>('staff_members').insertMany(membersToInsert);
+  //   console.log(`✅ Successfully seeded ${result.insertedCount} members`);
+    
+  // } catch (error) {
+  //   console.error('❌ Seeding failed:', error);  
+  //   throw error;
+  // }
+  // }
 
-
-
-
-
-
-
+  // static async forceSeedData(): Promise<void> {
+  //   console.log('🔄 === FORCE SEEDING ===');  
+    
+  //   try {
+  //     const db = await this.getDb();  
+      
+  //     // Clear existing
+  //     console.log('🗑️ Clearing existing data...');
+  //     const deleted = await db.collection('staff_members').deleteMany({});
+  //     console.log(`🗑️ Deleted ${deleted.deletedCount} existing members`);
+      
+  //     // Re-seed
+  //     await this.seedInitialData();
+      
+  //   } catch (error) {
+  //     console.error('❌ Force seeding failed:', error);  
+  //     throw error;
+  //   }
+  // }
+  /**
+ * Generate 90 days of historical shift data for demo purposes 
+ * Monday/Tuesday = closed (all zeros)
+ * Wed-Sun = realistic data
+ */  

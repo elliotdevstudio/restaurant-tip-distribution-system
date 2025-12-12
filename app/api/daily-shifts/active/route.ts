@@ -6,21 +6,22 @@ import { ShiftType } from '../../../../types';
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const date = searchParams.get('date');
-    const type = searchParams.get('type') as ShiftType | null;
-
-    const shift = await StaffService.getActiveShift(
-      date ? new Date(date) : undefined,
-      type || undefined
-    );
-
+    const dateParam = searchParams.get('date');
+    const typeParam = searchParams.get('type') as ShiftType | null;
+    
+    // Default to today if no date provided
+    const date = dateParam ? new Date(dateParam) : new Date();
+    const type: ShiftType = typeParam || 'FULL_DAY';
+    
+    const shift = await StaffService.getDailyShift(date, type);
+    
     if (!shift) {
       return NextResponse.json(
         { success: false, message: 'No active shift found' },
         { status: 404 }
       );
     }
-
+    
     return NextResponse.json({ success: true, shift });
   } catch (error) {
     console.error('Error fetching active shift:', error);

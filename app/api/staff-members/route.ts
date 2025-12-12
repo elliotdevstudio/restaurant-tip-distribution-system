@@ -16,8 +16,8 @@ export async function GET() {
       indexesCreated = true;
     }
     
-    // Seed initial data if needed
-    await StaffService.seedInitialData();
+    // Seed initial data if needed during development
+    // await StaffService.seedInitialData();
     
     // Fetch members
     const members = await StaffService.getAllStaffMembers();

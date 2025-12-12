@@ -1,6 +1,4 @@
-import { StaffMember } from "./types";
-
-export const mockStaffMembers: StaffMember[] = [
+data = [
   {
     firstName: 'John',
     lastName: 'Dawson',
@@ -93,6 +91,5 @@ export const mockStaffMembers: StaffMember[] = [
     firstName: 'Anna',
     lastName: 'Frey',
     dateCreated: new Date('2024-02-01'),
-  },
+  }
 ];
-

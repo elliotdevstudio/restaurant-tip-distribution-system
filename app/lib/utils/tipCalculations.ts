@@ -11,6 +11,28 @@ import {
 // ============================================
 
 /**
+ * Calculate the distribution amount based on configuration
+ */
+function calculateDistributionAmount(
+  sales: number,
+  tips: number,
+  distributionBasis: 'sales' | 'gratuities',
+  distributionType: 'percentage' | 'fixed',
+  percentage?: number,
+  fixedAmount?: number
+): number {
+  if (distributionType === 'fixed') {
+    return fixedAmount || 0;
+  }
+  
+  if (distributionType === 'percentage' && percentage) {
+    const baseAmount = distributionBasis === 'sales' ? sales : tips;
+    return (baseAmount * percentage) / 100;
+  }
+  
+  return 0;
+}
+/**
  * Generate random hours worked between min and max
  * @param min Minimum hours (default: 4)
  * @param max Maximum hours (default: 8.5)

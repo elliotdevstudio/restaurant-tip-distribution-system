@@ -62,9 +62,9 @@ export default function GratuityConfigStep({
         availableGroups={availableGroups}
         onSelectGroup={(groupId) => {
           onUpdateForm({ 
-            sourceGroupIds: groupId, 
+            sourceGroupIds: [groupId], 
             showGratuityModal: false,
-            step: 'distribution-config'
+            step: 'gratuity-setup'
           });
         }}
         onCreateNewGroup={() => {

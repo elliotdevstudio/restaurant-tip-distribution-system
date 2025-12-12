@@ -168,12 +168,24 @@ export interface Shift {
   closedAt?: Date;
 }
 
+export interface DailyShift {
+  id: string;
+  date: string;
+  type: ShiftType;
+  entries: any[]; // or define a proper entry type
+  createdAt: Date;
+  updatedAt: Date;
+  status?: 'open' | 'closed';
+}
+
 // Staff assignment for a specific shift (with hours worked)
 export interface ShiftStaffAssignment {
   staffId: string;
   activeGroupId: string;
   hoursWorked: number;
 }
+
+export type ContributionSourceType = 'sales' | 'tips';
 
 export interface StaffGroupFormState {
   name: string;
@@ -198,7 +210,7 @@ export interface StaffGroupFormState {
   step: 'basic' | 'contribution-source' | 'gratuity-setup' | 'connection-setup' | 'tip-pool-setup' | 'review';
 }
 
-// Modal state for nested group creation
+// Modal state for hypothetical nested group creation 
 export interface NestedGroupCreationState {
   isOpen: boolean;
   parentGroupFormState: StaffGroupFormState;

@@ -34,7 +34,7 @@ export default function RootLayout({
                 <Link href="/demo" className="hover:text-gray-300">
                   Daily Shift Generator
                 </Link>
-                <Link href="/shifts" className="hover:text-gray-300">
+                <Link href="/reports" className="hover:text-gray-300">
                   Shift Reports
                 </Link>
               </div>

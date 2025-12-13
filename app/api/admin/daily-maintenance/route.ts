@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DatabaseConnection } from '@/app/lib/mongodb';
+import { DatabaseConnection } from '../../../lib/mongodb';
 
-/**
+/**../
  * Daily Maintenance API Endpoint
  * 
  * This endpoint is called by GitHub Actions daily to:

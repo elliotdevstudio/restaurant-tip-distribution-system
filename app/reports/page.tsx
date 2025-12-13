@@ -14,6 +14,8 @@ interface ShiftReport {
   creditCardTips: number;
   cashTips: number;
   totalTips: number;
+  tipsReceived: number;
+  isDistributor: boolean;
   shiftCount: number;
 }
 
@@ -111,7 +113,7 @@ export default function ShiftReportsPage() {
     }
 
     // Create CSV content
-    const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips'];
+    const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips/Received'];
     const rows = reports.map(r => [
       r.staffName || '',
       r.groupName || '',
@@ -120,7 +122,7 @@ export default function ShiftReportsPage() {
       r.salesAmount.toFixed(2),
       r.creditCardTips.toFixed(2),
       r.cashTips.toFixed(2),
-      r.totalTips.toFixed(2)
+      ((r.isDistributor ? r.totalTips : r.tipsReceived) || 0).toFixed(2)
     ]);
 
     const csvContent = [
@@ -381,7 +383,7 @@ export default function ShiftReportsPage() {
                       ${report.cashTips.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                      ${report.totalTips.toFixed(2)}
+                      ${((report.isDistributor ? report.totalTips : report.tipsReceived) || 0).toFixed(2)}
                     </td>
                   </tr>
                 ))}

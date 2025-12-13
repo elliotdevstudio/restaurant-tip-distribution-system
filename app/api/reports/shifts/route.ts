@@ -136,6 +136,7 @@ function processShiftData(shifts: any[], query: ReportQuery): any[] {
           creditCardTips: 0,
           cashTips: 0,
           totalTips: 0,
+          tipsReceived: 0,
           isDistributor: entry.isDistributor || false,
           shiftCount: 0
         });
@@ -148,6 +149,7 @@ function processShiftData(shifts: any[], query: ReportQuery): any[] {
       staffData.creditCardTips += entry.creditCardTips || 0;
       staffData.cashTips += entry.cashTips || 0;
       staffData.totalTips += (entry.creditCardTips || 0) + (entry.cashTips || 0);
+      staffData.tipsReceived += entry.tipsReceived || 0;
       staffData.shiftCount += 1;
     });
   });

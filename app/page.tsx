@@ -116,7 +116,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Daily Shift Generator',
-      description: 'Generate and manage daily shifts, enter sales and tip data, and calculate distributions.',
+      description: 'Captures daily sales, staff hours, and detailed tips information to calculate payroll for staff members.',
       href: '/demo',
       icon: <Calendar className="w-6 h-6 text-green-600" />,
       colorClass: 'bg-green-50'

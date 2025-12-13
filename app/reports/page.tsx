@@ -7,7 +7,6 @@ type TimeRange = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
 type ViewType = 'all-groups' | 'single-group' | 'single-member';
 
 interface ShiftReport {
-  date: string;
   staffName?: string;
   groupName?: string;
   hoursWorked: number;
@@ -15,6 +14,7 @@ interface ShiftReport {
   creditCardTips: number;
   cashTips: number;
   totalTips: number;
+  shiftCount: number;
 }
 
 export default function ShiftReportsPage() {
@@ -26,6 +26,7 @@ export default function ShiftReportsPage() {
   const [selectedMember, setSelectedMember] = useState('');
   const [reports, setReports] = useState<ShiftReport[]>([]);
   const [loading, setLoading] = useState(false);
+  const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string } | null>(null);
   const [staffGroups, setStaffGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [staffMembers, setStaffMembers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
 
@@ -90,6 +91,7 @@ export default function ShiftReportsPage() {
 
       if (data.success) {
         setReports(data.reports);
+        setDateRange(data.dateRange);
       } else {
         console.error('Failed to fetch reports:', data.message);
         alert('Failed to fetch reports: ' + data.message);
@@ -109,12 +111,12 @@ export default function ShiftReportsPage() {
     }
 
     // Create CSV content
-    const headers = ['Date', 'Staff Name', 'Group', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips'];
+    const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips'];
     const rows = reports.map(r => [
-      r.date,
       r.staffName || '',
       r.groupName || '',
-      r.hoursWorked,
+      r.shiftCount,
+      r.hoursWorked.toFixed(2),
       r.salesAmount.toFixed(2),
       r.creditCardTips.toFixed(2),
       r.cashTips.toFixed(2),
@@ -122,6 +124,8 @@ export default function ShiftReportsPage() {
     ]);
 
     const csvContent = [
+      `Report Period: ${dateRange?.startDate || ''} to ${dateRange?.endDate || ''}`,
+      '',
       headers.join(','),
       ...rows.map(row => row.join(','))
     ].join('\n');
@@ -131,7 +135,7 @@ export default function ShiftReportsPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `shift-reports-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `shift-reports-${dateRange?.startDate || 'unknown'}-to-${dateRange?.endDate || 'unknown'}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -293,21 +297,25 @@ export default function ShiftReportsPage() {
       </div>
 
       {/* Results Table */}
-      {reports.length > 0 && (
+      {reports.length > 0 && dateRange && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Report Results ({reports.length} entries)
-            </h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Report Results ({reports.length} staff members)
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  <Calendar className="inline w-4 h-4 mr-1" />
+                  Period: {new Date(dateRange.startDate).toLocaleDateString()} - {new Date(dateRange.endDate).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-gray-50 to-white">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <Calendar className="inline w-4 h-4 mr-1" />
-                    Date
-                  </th>
                   {viewType !== 'single-member' && (
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       <Users className="inline w-4 h-4 mr-1" />
@@ -319,6 +327,10 @@ export default function ShiftReportsPage() {
                       Group
                     </th>
                   )}
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    <Calendar className="inline w-4 h-4 mr-1" />
+                    Shifts
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     <Clock className="inline w-4 h-4 mr-1" />
                     Hours
@@ -341,19 +353,21 @@ export default function ShiftReportsPage() {
               <tbody className="divide-y divide-gray-200">
                 {reports.map((report, index) => (
                   <tr key={index} className="hover:bg-blue-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.date}
-                    </td>
                     {viewType !== 'single-member' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {report.staffName}
                       </td>
                     )}
                     {viewType === 'all-groups' && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {report.groupName}
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 border border-blue-200 rounded">
+                          {report.groupName}
+                        </span>
                       </td>
                     )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {report.shiftCount}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {report.hoursWorked.toFixed(2)}
                     </td>

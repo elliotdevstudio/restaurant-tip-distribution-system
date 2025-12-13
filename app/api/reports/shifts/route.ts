@@ -107,7 +107,8 @@ function calculateDateRange(query: ReportQuery): { startDate: string; endDate: s
 }
 
 function processShiftData(shifts: any[], query: ReportQuery): any[] {
-  const reports: any[] = [];
+  // Use a Map to aggregate data by staff member
+  const aggregatedData = new Map<string, any>();
 
   shifts.forEach(shift => {
     if (!shift.entries || shift.entries.length === 0) return;
@@ -121,30 +122,43 @@ function processShiftData(shifts: any[], query: ReportQuery): any[] {
         return;
       }
 
-      // Calculate totals
-      const totalTips = (entry.creditCardTips || 0) + (entry.cashTips || 0);
+      const key = entry.staffId;
 
-      reports.push({
-        date: shift.date,
-        staffId: entry.staffId,
-        staffName: entry.staffName,
-        groupId: entry.groupId,
-        groupName: entry.groupName,
-        hoursWorked: entry.hoursWorked || 0,
-        salesAmount: entry.salesAmount || 0,
-        creditCardTips: entry.creditCardTips || 0,
-        cashTips: entry.cashTips || 0,
-        totalTips,
-        isDistributor: entry.isDistributor || false
-      });
+      if (!aggregatedData.has(key)) {
+        // Initialize new staff member entry
+        aggregatedData.set(key, {
+          staffId: entry.staffId,
+          staffName: entry.staffName,
+          groupId: entry.groupId,
+          groupName: entry.groupName,
+          hoursWorked: 0,
+          salesAmount: 0,
+          creditCardTips: 0,
+          cashTips: 0,
+          totalTips: 0,
+          isDistributor: entry.isDistributor || false,
+          shiftCount: 0
+        });
+      }
+
+      // Aggregate values
+      const staffData = aggregatedData.get(key);
+      staffData.hoursWorked += entry.hoursWorked || 0;
+      staffData.salesAmount += entry.salesAmount || 0;
+      staffData.creditCardTips += entry.creditCardTips || 0;
+      staffData.cashTips += entry.cashTips || 0;
+      staffData.totalTips += (entry.creditCardTips || 0) + (entry.cashTips || 0);
+      staffData.shiftCount += 1;
     });
   });
 
-  // Sort by date, then by staff name
-  reports.sort((a, b) => {
-    if (a.date !== b.date) {
-      return a.date.localeCompare(b.date);
+  // Convert Map to array and sort by staff name
+  const reports = Array.from(aggregatedData.values()).sort((a, b) => {
+    // Sort by group name first (if showing all groups)
+    if (query.viewType === 'all-groups' && a.groupName !== b.groupName) {
+      return (a.groupName || '').localeCompare(b.groupName || '');
     }
+    // Then by staff name
     return (a.staffName || '').localeCompare(b.staffName || '');
   });
 

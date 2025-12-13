@@ -253,16 +253,10 @@ export default function StaffMembersPage() {
                       <tr key={member.id} className="hover:bg-blue-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <span className="text-blue-700 font-semibold text-sm">
-                                {member.firstName[0]}{member.lastName[0]}
-                              </span>
-                            </div>
                             <div>
                               <div className="text-sm font-semibold text-gray-900">
                                 {member.lastName}, {member.firstName}
                               </div>
-                              <div className="text-xs text-gray-500">ID: {member.id.substring(0, 8)}...</div>
                             </div>
                           </div>
                         </td>

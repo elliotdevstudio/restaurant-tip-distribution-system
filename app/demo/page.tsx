@@ -518,12 +518,8 @@ export default function DemoPage() {
           <h1 className="text-3xl font-bold text-gray-900">Daily Shift Generator</h1>
         </div>
         <p className="text-gray-600">
-          Generate realistic sales and tip data for testing calculations
+          Click "Generate Data" to create realistic sales and tip data from a restaurant point of sale system
         </p>
-        <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
-          <AlertCircle className="w-4 h-4" />
-          <span>Data persists across page refreshes during your session</span>
-        </div>
       </div>
 
       {/* Controls Card */}
@@ -579,9 +575,9 @@ export default function DemoPage() {
               Distributor Groups
             </div>
             <div className="text-xs text-blue-700 space-y-1">
-              <div>• Sales: $949.99 - $2,499.99</div>
-              <div>• CC Tips: 17% - 23% of sales</div>
-              <div>• Tip out calculated and deducted</div>
+              <div>• Assign a tip out source from sales or tips received</div>
+              <div>• Choose a percentage or fixed amount from the source</div>
+              <div>• Tip out is calculated and deducted from tips earned by distributor</div>
             </div>
           </div>
           
@@ -592,8 +588,9 @@ export default function DemoPage() {
             </div>
             <div className="text-xs text-green-700 space-y-1">
               <div>• Receive tip outs from distributors</div>
-              <div>• Share based on hours worked</div>
-              <div>• Optimized calculations (O(1) per row)</div>
+              <div>• Tips are shared based on hours worked among all recipient staff</div>
+              <div>• Groups can be pooled together or receive their own distributions</div>
+              {/* <div>• Optimized calculations (O(1) per row)</div> */}
             </div>
           </div>
         </div>
@@ -810,7 +807,7 @@ export default function DemoPage() {
               No Data Generated Yet
             </h3>
             <p className="text-gray-600 mb-4">
-              Click "Generate Data" to create realistic sales and tip entries for testing
+              Click "Generate Data" to create realistic sales and tip data
             </p>
             <p className="text-sm text-gray-500">
               Data will be saved to your session and persist across page refreshes

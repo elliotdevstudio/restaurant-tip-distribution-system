@@ -322,7 +322,7 @@ export default function ShiftReportsPage() {
             <div className="flex items-start gap-4">
               <DatePicker
                 selected={selectedWeekStart}
-                onChange={(date) => setSelectedWeekStart(date)}
+                onChange={(date: Date | null) => setSelectedWeekStart(date)}
                 filterDate={filterWeekStartDates}
                 dateFormat="MM/dd/yyyy"
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -359,7 +359,7 @@ export default function ShiftReportsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
               <DatePicker
                 selected={customStartDate}
-                onChange={(date) => setCustomStartDate(date)}
+                onChange={(date: Date | null) => setCustomStartDate(date)}
                 selectsStart
                 startDate={customStartDate}
                 endDate={customEndDate}
@@ -372,11 +372,10 @@ export default function ShiftReportsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
               <DatePicker
                 selected={customEndDate}
-                onChange={(date) => setCustomEndDate(date)}
+                onChange={(date: Date | null) => setCustomEndDate(date)}
                 selectsEnd
                 startDate={customStartDate}
                 endDate={customEndDate}
-                minDate={customStartDate}
                 dateFormat="MM/dd/yyyy"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholderText="Select end date"
@@ -393,7 +392,7 @@ export default function ShiftReportsPage() {
             </label>
             <DatePicker
               selected={customStartDate}
-              onChange={(date) => {
+              onChange={(date: Date | null) => {
                 setCustomStartDate(date);
                 setCustomEndDate(date); // Same day for daily
               }}

@@ -41,10 +41,11 @@ export async function GET(request: NextRequest) {
 }
 
 // POST create new daily shift
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { date, type } = body;
+    const { date, type, entries } = body;  // ADD entries here
 
     if (!date || !type) {
       return NextResponse.json(
@@ -60,11 +61,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const shift = await StaffService.createDailyShift(new Date(date), type);
+    const shift = await StaffService.createDailyShift(
+      new Date(date), 
+      type,
+      entries  // PASS entries to the service
+    );
+    
     return NextResponse.json({ 
       success: true, 
       shift,
-      message: 'Daily shift created successfully'
+      message: entries ? 'Daily shift updated successfully' : 'Daily shift created successfully'
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating daily shift:', error);

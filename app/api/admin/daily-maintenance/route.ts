@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseConnection } from '../../../lib/mongodb';
 
-/**
+/**../
  * Daily Maintenance API Endpoint
  * 
  * This endpoint is called by GitHub Actions daily to:
  * 1. Delete shifts older than 90 days
- * 2. Create today's shift if it doesn't exist (with empty entries)
  * 
  * Security: Requires CRON_SECRET header for authorization
  */
@@ -54,31 +53,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ Deleted ${deleteResult.deletedCount} old shifts`);
 
-    // Create today's shift if it doesn't exist
-    const today = new Date().toISOString().split('T')[0];
-    
-    console.log(`📅 Checking for today's shift (${today})...`);
-
-    const existingShift = await shiftsCollection.findOne({ date: today });
-
-    let shiftCreated = false;
-    if (!existingShift) {
-      const newShift = {
-        date: today,
-        type: 'FULL_DAY',
-        entries: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        status: 'open'
-      };
-
-      await shiftsCollection.insertOne(newShift);
-      console.log(`✅ Created empty shift for ${today}`);
-      shiftCreated = true;
-    } else {
-      console.log(`ℹ️  Shift for ${today} already exists`);
-    }
-
     // Get current stats
     const totalShifts = await shiftsCollection.countDocuments();
     const oldestShift = await shiftsCollection
@@ -96,8 +70,7 @@ export async function POST(request: NextRequest) {
       totalShifts,
       oldestDate: oldestShift[0]?.date || null,
       newestDate: newestShift[0]?.date || null,
-      deletedCount: deleteResult.deletedCount,
-      shiftCreated
+      deletedCount: deleteResult.deletedCount
     };
 
     console.log('📊 Maintenance stats:', stats);

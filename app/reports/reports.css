@@ -1,0 +1,66 @@
+/* Custom styles for Shift Reports date picker */
+
+/* Highlight disabled dates (non-start days) with light gray */
+.react-datepicker__day--disabled {
+  background-color: #f3f4f6 !important;
+  color: #9ca3af !important;
+  cursor: not-allowed !important;
+}
+
+/* Make selectable start days stand out */
+.react-datepicker__day:not(.react-datepicker__day--disabled):hover {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+/* Selected date styling */
+.react-datepicker__day--selected {
+  background-color: #2563eb !important;
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+/* Today's date marker */
+.react-datepicker__day--today {
+  font-weight: bold !important;
+  border: 2px solid #2563eb !important;
+}
+
+/* Inline calendar styling */
+.react-datepicker--inline {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-family: inherit;
+}
+
+/* Header styling */
+.react-datepicker__header {
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+/* Month navigation */
+.react-datepicker__navigation {
+  top: 0.75rem;
+}
+
+.react-datepicker__navigation:hover {
+  background-color: #e5e7eb;
+  border-radius: 0.25rem;
+}
+
+/* Day names */
+.react-datepicker__day-name {
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Month/Year dropdown */
+.react-datepicker__current-month {
+  color: #111827;
+  font-weight: 600;
+  font-size: 0.875rem;
+}

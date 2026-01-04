@@ -450,32 +450,48 @@ export default function DemoPage() {
     setDemoEntries([]);
   };
 
-  const handleContinueToShiftEntry = async () => {
-    try {
-      const shiftResponse = await fetch('/api/daily-shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          type: 'FULL_DAY'
-        })
-      });
+  const handleSaveShift = async () => {
+  if (demoEntries.length === 0) {
+    alert('Please generate data first');
+    return;
+  }
 
-      const shiftResult = await shiftResponse.json();
-      
-      if (!shiftResult.success) {
-        alert(`Failed to create shift: ${shiftResult.message}`);
-        return;
-      }
+  try {
+    setIsLoading(true);
+    
+    // Save shift with demo entries
+    const shiftResponse = await fetch('/api/daily-shifts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: selectedDate,
+        type: 'FULL_DAY',
+        entries: demoEntries
+      })
+    });
 
-      sessionStorage.setItem('demoShiftId', shiftResult.shift.id);
-      sessionStorage.setItem('demoEntries', JSON.stringify(demoEntries));
-      window.location.href = '/shifts';
-    } catch (error) {
-      console.error('Failed to create shift:', error);
-      alert('Failed to create shift. Please try again.');
+    const shiftResult = await shiftResponse.json();
+    
+    if (!shiftResult.success) {
+      alert(`Failed to save shift: ${shiftResult.message}`);
+      setIsLoading(false);
+      return;
     }
-  };
+
+    alert('✅ Shift saved successfully! You can now view it in Shift Reports.');
+    
+    // Optionally clear demo data after successful save
+    // sessionStorage.removeItem(DEMO_DATA_KEY);
+    // sessionStorage.removeItem(DEMO_DATE_KEY);
+    // setDemoEntries([]);
+    
+  } catch (error) {
+    console.error('Failed to save shift:', error);
+    alert('Failed to save shift. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const getTotalTips = (entry: DemoEntry) => {
     return (entry.creditCardTips || 0) + (entry.cashTips || 0);
@@ -559,10 +575,11 @@ export default function DemoPage() {
               </button>
               
               <button
-                onClick={handleContinueToShiftEntry}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                onClick={handleSaveShift}
+                disabled={isLoading}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Continue to Shift Entry →
+                {isLoading ? 'Saving...' : '💾 Save Shift'}
               </button>
             </>
           )}

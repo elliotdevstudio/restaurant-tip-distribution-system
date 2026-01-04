@@ -168,284 +168,56 @@ export class StaffService {
   // DAILY SHIFT METHODS (Replaces previous shift/assignment/tip methods)
 // ============================================
 
-  static async createDailyShift(date: Date, type: ShiftType): Promise<DailyShiftWithId> {
-    console.log(`📅 Creating daily shift: ${type} on ${date.toISOString()}`);
-    const db = await this.getDb();
-    
-    // Normalize date to midnight UTC
-    const normalizedDate = new Date(date.setHours(0, 0, 0, 0));
-    
-    // Check if shift already exists
-    const existing = await db.collection<DailyShiftDocument>('daily_shifts')
-      .findOne({ 
-        date: normalizedDate,
-        type
-      });
-    
-    if (existing) {
-      console.log('⚠️ Shift already exists for this date/type');
-      return transformDailyShift(existing);
-    }
-    
-    const shiftDoc: DailyShiftDocument = {
+  // Replace the createDailyShift method in app/lib/services/staffService.ts with this:
+
+static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Promise<DailyShiftWithId> {
+  console.log(`📅 Creating/updating daily shift: ${type} on ${date.toISOString()}`);
+  const db = await this.getDb();
+  
+  // Normalize date to midnight UTC
+  const normalizedDate = new Date(date.setHours(0, 0, 0, 0));
+  
+  // UPSERT: Update if exists, create if not
+  const result = await db.collection<DailyShiftDocument>('daily_shifts').findOneAndUpdate(
+    { 
       date: normalizedDate,
-      type,
-      status: 'draft',
-      staffData: [],
-      groupSummaries: [],
-      shiftTotals: {
-        totalTipsCollected: 0,
-        totalDistributed: 0,
-        totalKeptByDistributors: 0,
-        totalReceivedByRecipients: 0,
-        totalHoursWorked: 0,
-        activeStaffCount: 0,
-        activeGroupCount: 0
+      type 
+    },
+    {
+      $set: {
+        date: normalizedDate,
+        type,
+        status: 'draft',
+        staffData: entries || [],
+        groupSummaries: [],
+        shiftTotals: {
+          totalTipsCollected: 0,
+          totalDistributed: 0,
+          totalKeptByDistributors: 0,
+          totalReceivedByRecipients: 0,
+          totalHoursWorked: 0,
+          activeStaffCount: 0,
+          activeGroupCount: 0
+        },
+        updatedAt: new Date()
       },
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    const result = await db.collection<DailyShiftDocument>('daily_shifts')
-      .insertOne(shiftDoc);
-    
-    const created = await db.collection<DailyShiftDocument>('daily_shifts')
-      .findOne({ _id: result.insertedId });
-    
-    if (!created) {
-      throw new Error('Failed to create daily shift');
-    }
-
-    console.log('✅ Successfully created daily shift');
-    return transformDailyShift(created);
-  }
-
-  static async getDailyShift(date: Date, type: ShiftType): Promise<DailyShiftWithId | null> {
-    console.log(`🔍 Fetching daily shift: ${type} on ${date.toISOString()}`);
-    const db = await this.getDb();
-    
-    const normalizedDate = new Date(date.setHours(0, 0, 0, 0));
-    
-    const shift = await db.collection<DailyShiftDocument>('daily_shifts')
-      .findOne({ date: normalizedDate, type });
-    
-    if (!shift) {
-      console.log('❌ Daily shift not found');
-      return null;
-    }
-    
-    return transformDailyShift(shift);
-  }
-
-  static async getDailyShiftById(shiftId: string): Promise<DailyShiftWithId | null> {
-    console.log('🔍 Fetching daily shift by ID:', shiftId);
-    const db = await this.getDb();
-    
-    const shift = await db.collection<DailyShiftDocument>('daily_shifts')
-      .findOne({ _id: new ObjectId(shiftId) });
-    
-    if (!shift) {
-      console.log('❌ Daily shift not found');
-      return null;
-    }
-    
-    return transformDailyShift(shift);
-  }
-
-  static async getDailyShiftsByDateRange(
-    startDate: Date,
-    endDate: Date,
-    type?: ShiftType
-  ): Promise<DailyShiftWithId[]> {
-    console.log('📋 Fetching daily shifts by date range');
-    const db = await this.getDb();
-    
-    const query: any = {
-      date: {
-        $gte: new Date(startDate.setHours(0, 0, 0, 0)),
-        $lte: new Date(endDate.setHours(23, 59, 59, 999))
+      $setOnInsert: {
+        createdAt: new Date()
       }
-    };
-    
-    if (type) {
-      query.type = type;
+    },
+    { 
+      upsert: true,
+      returnDocument: 'after'
     }
-    
-    const shifts = await db.collection<DailyShiftDocument>('daily_shifts')
-      .find(query)
-      .sort({ date: -1, type: 1 })
-      .toArray();
-    
-    console.log(`✅ Found ${shifts.length} daily shifts in range`);
-    return shifts.map(transformDailyShift);
+  );
+  
+  if (!result) {
+    throw new Error('Failed to create/update daily shift');
   }
-
-  static async updateDailyShiftStaffData(
-    shiftId: string,
-    staffData: Array<{
-      staffId: string;
-      firstName: string;
-      lastName: string;
-      groupId: string;
-      groupName: string;
-      hoursWorked: number;
-      salesAmount?: number;
-      creditCardTips?: number;
-      cashTips?: number;
-      totalTipsCollected?: number;
-      contributionAmount?: number;
-      netTipAmount?: number;
-      receivedAmount?: number;
-      sourceGroupIds?: string[];
-    }>
-    ): Promise<DailyShiftWithId> {
-      console.log('📝 Updating daily shift staff data');
-      const db = await this.getDb();
   
-    // Convert to MongoDB format
-    const staffDataDoc: StaffShiftData[] = staffData.map(staff => ({
-      staffId: new ObjectId(staff.staffId),
-      firstName: staff.firstName,
-      lastName: staff.lastName,
-      groupId: new ObjectId(staff.groupId),
-      groupName: staff.groupName,
-      hoursWorked: staff.hoursWorked,
-      salesAmount: staff.salesAmount,
-      creditCardTips: staff.creditCardTips,
-      cashTips: staff.cashTips,
-      totalTipsCollected: staff.totalTipsCollected,
-      contributionAmount: staff.contributionAmount,
-      netTipAmount: staff.netTipAmount,
-      receivedAmount: staff.receivedAmount,
-      sourceGroupIds: staff.sourceGroupIds?.map(id => new ObjectId(id))
-    }));
-    
-    const result = await db.collection<DailyShiftDocument>('daily_shifts')
-      .updateOne(
-        { _id: new ObjectId(shiftId) },
-        { 
-          $set: { 
-            staffData: staffDataDoc,
-            updatedAt: new Date()
-          } 
-        }
-      );
-    
-    if (result.matchedCount === 0) {
-      throw new Error('Daily shift not found');
-    }
-    
-    const updated = await db.collection<DailyShiftDocument>('daily_shifts')
-      .findOne({ _id: new ObjectId(shiftId) });
-    
-    if (!updated) {
-      throw new Error('Failed to retrieve updated daily shift');
-    }
-
-    console.log('✅ Successfully updated staff data');
-    return transformDailyShift(updated);
-    }
-
-  static async updateDailyShiftGroupSummaries(
-    shiftId: string,
-    groupSummaries: Array<{
-      groupId: string;
-      groupName: string;
-      distributesGratuities: boolean;
-      contributionSource?: 'sales' | 'gratuities';
-      activeStaffIds: string[];
-      totalHours: number;
-      totalCollected?: number;
-      totalDistributed?: number;
-      totalKept?: number;
-      totalReceived?: number;
-      averageHourlyRate?: number;
-    }>
-  ): Promise<DailyShiftWithId> {
-    console.log('📝 Updating daily shift group summaries');
-    const db = await this.getDb();
-  
-    // Convert to MongoDB format
-    const groupSummariesDoc: GroupShiftSummary[] = groupSummaries.map(group => ({
-      groupId: new ObjectId(group.groupId),
-      groupName: group.groupName,
-      distributesGratuities: group.distributesGratuities,
-      contributionSource: group.contributionSource,
-      activeStaffIds: group.activeStaffIds.map(id => new ObjectId(id)),
-      totalHours: group.totalHours,
-      totalCollected: group.totalCollected,
-      totalDistributed: group.totalDistributed,
-      totalKept: group.totalKept,
-      totalReceived: group.totalReceived,
-      averageHourlyRate: group.averageHourlyRate
-    }));
-  
-    const result = await db.collection<DailyShiftDocument>('daily_shifts')
-      .updateOne(
-        { _id: new ObjectId(shiftId) },
-        { 
-          $set: { 
-            groupSummaries: groupSummariesDoc,
-            updatedAt: new Date()
-          } 
-        }
-      );
-    
-    if (result.matchedCount === 0) {
-      throw new Error('Daily shift not found');
-    }
-  
-  const updated = await db.collection<DailyShiftDocument>('daily_shifts')
-    .findOne({ _id: new ObjectId(shiftId) });
-  
-  if (!updated) {
-    throw new Error('Failed to retrieve updated daily shift');
-  }
-
-  console.log('✅ Successfully updated group summaries');
-  return transformDailyShift(updated);
-  }
-
-  static async updateDailyShiftTotals(
-    shiftId: string,
-    totals: {
-      totalTipsCollected: number;
-      totalDistributed: number;
-      totalKeptByDistributors: number;
-      totalReceivedByRecipients: number;
-      totalHoursWorked: number;
-      activeStaffCount: number;
-      activeGroupCount: number;
-    }
-  ): Promise<DailyShiftWithId> {
-    console.log('📝 Updating daily shift totals');
-    const db = await this.getDb();
-    
-    const result = await db.collection<DailyShiftDocument>('daily_shifts')
-      .updateOne(
-        { _id: new ObjectId(shiftId) },
-        { 
-          $set: { 
-            shiftTotals: totals,
-            updatedAt: new Date()
-          } 
-        }
-      );
-    
-    if (result.matchedCount === 0) {
-      throw new Error('Daily shift not found');
-    }
-    
-    const updated = await db.collection<DailyShiftDocument>('daily_shifts')
-      .findOne({ _id: new ObjectId(shiftId) });
-    
-    if (!updated) {
-      throw new Error('Failed to retrieve updated daily shift');
-    }
-
-    console.log('✅ Successfully updated shift totals');
-    return transformDailyShift(updated);
-  }
+  console.log(`✅ Shift updated successfully`);
+  return transformDailyShift(result);
+}
 
   static async saveCompleteDailyShift(
     shiftId: string,
@@ -564,6 +336,37 @@ export class StaffService {
     console.log('✅ Successfully deleted daily shift');
   }
 
+  static async getDailyShiftsByDateRange(
+  startDate: Date,
+  endDate: Date,
+  type?: ShiftType
+  ): Promise<DailyShiftWithId[]> {
+  console.log(`📅 Fetching shifts from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+  const db = await this.getDb();
+  
+  // Normalize dates to midnight UTC
+  const normalizedStart = new Date(startDate.setHours(0, 0, 0, 0));
+  const normalizedEnd = new Date(endDate.setHours(23, 59, 59, 999));
+  
+  const query: any = {
+    date: {
+      $gte: normalizedStart,
+      $lte: normalizedEnd
+    }
+  };
+  
+  if (type) {
+    query.type = type;
+  }
+  
+  const shifts = await db.collection<DailyShiftDocument>('daily_shifts')
+    .find(query)
+    .sort({ date: 1 })
+    .toArray();
+  
+  console.log(`✅ Found ${shifts.length} shifts in date range`);
+  return shifts.map(transformDailyShift);
+  }
 // ============================================
 // REPORTING / ANALYTICS METHODS
 // ============================================

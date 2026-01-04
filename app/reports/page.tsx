@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { Calendar, Download, TrendingUp, Users, DollarSign, Clock } from 'lucide-react';
+import './reports.css'; // Custom styles for date picker
 
 type TimeRange = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
 type ViewType = 'all-groups' | 'single-group' | 'single-member';
+type WeekStartDay = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Sunday, 6 = Saturday
 
 interface ShiftReport {
   staffName?: string;
@@ -19,11 +23,23 @@ interface ShiftReport {
   shiftCount: number;
 }
 
+const WEEK_DAYS = [
+  { value: 0, label: 'Sunday' },
+  { value: 1, label: 'Monday' },
+  { value: 2, label: 'Tuesday' },
+  { value: 3, label: 'Wednesday' },
+  { value: 4, label: 'Thursday' },
+  { value: 5, label: 'Friday' },
+  { value: 6, label: 'Saturday' },
+];
+
 export default function ShiftReportsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
   const [viewType, setViewType] = useState<ViewType>('all-groups');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>(0); // Default: Sunday
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date | null>(new Date()); // For weekly/biweekly picker
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [selectedGroup, setSelectedGroup] = useState('');
   const [selectedMember, setSelectedMember] = useState('');
   const [reports, setReports] = useState<ShiftReport[]>([]);
@@ -59,25 +75,100 @@ export default function ShiftReportsPage() {
     fetchStaffData();
   }, []);
 
+  // Update selectedWeekStart when weekStartDay changes
+  useEffect(() => {
+    // Find the most recent date matching weekStartDay
+    const today = new Date();
+    const currentDay = today.getDay();
+    const daysToSubtract = (currentDay - weekStartDay + 7) % 7;
+    const mostRecentStartDay = new Date(today);
+    mostRecentStartDay.setDate(today.getDate() - daysToSubtract);
+    setSelectedWeekStart(mostRecentStartDay);
+  }, [weekStartDay]);
+
+  // Helper function to check if a date should be highlighted (is a valid week start)
+  const isWeekStartDay = (date: Date): boolean => {
+    return date.getDay() === weekStartDay;
+  };
+
+  // Helper function to filter only valid start days for the date picker
+  const filterWeekStartDates = (date: Date): boolean => {
+    return date.getDay() === weekStartDay;
+  };
+
+  // Calculate date range based on time range and week start day
+  const calculateDateRange = (): { startDate: string; endDate: string } | null => {
+    const today = new Date();
+    let start: Date;
+    let end: Date;
+
+    switch (timeRange) {
+      case 'daily':
+        if (!customStartDate) return null;
+        start = new Date(customStartDate);
+        end = new Date(customStartDate);
+        break;
+
+      case 'weekly':
+        if (!selectedWeekStart) return null;
+        // Use the selected date as the week start
+        start = new Date(selectedWeekStart);
+        // End is 6 days later
+        end = new Date(selectedWeekStart);
+        end.setDate(end.getDate() + 6);
+        break;
+
+      case 'biweekly':
+        if (!selectedWeekStart) return null;
+        // Use the selected date as the bi-week start
+        start = new Date(selectedWeekStart);
+        // End is 13 days later (2 weeks)
+        end = new Date(selectedWeekStart);
+        end.setDate(end.getDate() + 13);
+        break;
+
+      case 'monthly':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+
+      case 'custom':
+        if (!customStartDate || !customEndDate) {
+          return null;
+        }
+        start = customStartDate;
+        end = customEndDate;
+        break;
+
+      default:
+        return null;
+    }
+
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0]
+    };
+  };
+
   const handleSearch = async () => {
     setLoading(true);
-    
+
     try {
+      const range = calculateDateRange();
+      
+      if (!range) {
+        alert('Please select valid dates for custom range');
+        setLoading(false);
+        return;
+      }
+
       // Build query parameters
       const params = new URLSearchParams({
         timeRange,
-        viewType
+        viewType,
+        startDate: range.startDate,
+        endDate: range.endDate
       });
-
-      if (timeRange === 'custom') {
-        if (!startDate || !endDate) {
-          alert('Please select both start and end dates for custom range');
-          setLoading(false);
-          return;
-        }
-        params.append('startDate', startDate);
-        params.append('endDate', endDate);
-      }
 
       if (viewType === 'single-group' && selectedGroup) {
         params.append('groupId', selectedGroup);
@@ -127,6 +218,7 @@ export default function ShiftReportsPage() {
 
     const csvContent = [
       `Report Period: ${dateRange?.startDate || ''} to ${dateRange?.endDate || ''}`,
+      `Week Start Day: ${WEEK_DAYS.find(d => d.value === weekStartDay)?.label}`,
       '',
       headers.join(','),
       ...rows.map(row => row.join(','))
@@ -163,134 +255,206 @@ export default function ShiftReportsPage() {
           Search Filters
         </h2>
 
-        {/* Time Range Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            <Calendar className="inline w-4 h-4 mr-1" />
-            Time Range
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: 'daily', label: 'Daily' },
-              { value: 'weekly', label: 'Weekly' },
-              { value: 'biweekly', label: 'Bi-Weekly' },
-              { value: 'monthly', label: 'Monthly' },
-              { value: 'custom', label: 'Custom Range' }
-            ].map(option => (
-              <button
-                key={option.value}
-                onClick={() => setTimeRange(option.value as TimeRange)}
-                className={`px-4 py-2 rounded-lg border-2 transition-colors ${
-                  timeRange === option.value
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
-                }`}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Time Range Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Calendar className="inline w-4 h-4 mr-1" />
+              Time Range
+            </label>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Bi-Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+
+          {/* Week Start Day (only show for weekly/biweekly) */}
+          {(timeRange === 'weekly' || timeRange === 'biweekly') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Week Starts On
+              </label>
+              <select
+                value={weekStartDay}
+                onChange={(e) => setWeekStartDay(Number(e.target.value) as WeekStartDay)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                {option.label}
-              </button>
-            ))}
+                {WEEK_DAYS.map(day => (
+                  <option key={day.value} value={day.value}>
+                    {day.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* View Type Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Users className="inline w-4 h-4 mr-1" />
+              View By
+            </label>
+            <select
+              value={viewType}
+              onChange={(e) => setViewType(e.target.value as ViewType)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all-groups">All Groups (with Member Totals)</option>
+              <option value="single-group">Single Group (with Member Totals)</option>
+              <option value="single-member">Individual Staff Member</option>
+            </select>
           </div>
         </div>
 
-        {/* Custom Date Range */}
+        {/* Week/Bi-week Start Date Picker */}
+        {(timeRange === 'weekly' || timeRange === 'biweekly') && (
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select {timeRange === 'weekly' ? 'Week' : 'Bi-Week'} Start Date
+            </label>
+            <div className="flex items-start gap-4">
+              <DatePicker
+                selected={selectedWeekStart}
+                onChange={(date) => setSelectedWeekStart(date)}
+                filterDate={filterWeekStartDates}
+                dateFormat="MM/dd/yyyy"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholderText={`Select a ${WEEK_DAYS.find(d => d.value === weekStartDay)?.label}`}
+                highlightDates={[selectedWeekStart].filter(Boolean) as Date[]}
+                inline
+              />
+              <div className="flex-1 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-900 font-medium mb-2">
+                  📅 {timeRange === 'weekly' ? 'Week' : 'Bi-Week'} Period
+                </p>
+                {selectedWeekStart && (
+                  <>
+                    <p className="text-sm text-blue-700">
+                      <strong>Start:</strong> {selectedWeekStart.toLocaleDateString()}
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      <strong>End:</strong> {new Date(selectedWeekStart.getTime() + (timeRange === 'weekly' ? 6 : 13) * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-2">
+                      Only {WEEK_DAYS.find(d => d.value === weekStartDay)?.label}s are selectable
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Date Range Pickers */}
         {timeRange === 'custom' && (
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+              <DatePicker
+                selected={customStartDate}
+                onChange={(date) => setCustomStartDate(date)}
+                selectsStart
+                startDate={customStartDate}
+                endDate={customEndDate}
+                dateFormat="MM/dd/yyyy"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholderText="Select start date"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+              <DatePicker
+                selected={customEndDate}
+                onChange={(date) => setCustomEndDate(date)}
+                selectsEnd
+                startDate={customStartDate}
+                endDate={customEndDate}
+                minDate={customStartDate}
+                dateFormat="MM/dd/yyyy"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholderText="Select end date"
               />
             </div>
           </div>
         )}
 
-        {/* View Type Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            <Users className="inline w-4 h-4 mr-1" />
-            View By
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: 'all-groups', label: 'All Groups (with Member Totals)' },
-              { value: 'single-group', label: 'Single Group (with Member Totals)' },
-              { value: 'single-member', label: 'Individual Staff Member' }
-            ].map(option => (
-              <button
-                key={option.value}
-                onClick={() => setViewType(option.value as ViewType)}
-                className={`px-4 py-2 rounded-lg border-2 transition-colors ${
-                  viewType === option.value
-                    ? 'bg-green-600 text-white border-green-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-green-500'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+        {/* Daily Date Picker */}
+        {timeRange === 'daily' && (
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Date
+            </label>
+            <DatePicker
+              selected={customStartDate}
+              onChange={(date) => {
+                setCustomStartDate(date);
+                setCustomEndDate(date); // Same day for daily
+              }}
+              dateFormat="MM/dd/yyyy"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholderText="Select a date"
+              maxDate={new Date()} // Can't select future dates
+            />
           </div>
+        )}
+
+        {/* Conditional Group/Member Dropdowns */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {viewType === 'single-group' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Group</label>
+              <select
+                value={selectedGroup}
+                onChange={(e) => setSelectedGroup(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Choose a group...</option>
+                {staffGroups.map(group => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {viewType === 'single-member' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Staff Member</label>
+              <select
+                value={selectedMember}
+                onChange={(e) => setSelectedMember(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Choose a staff member...</option>
+                {staffMembers.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.lastName}, {member.firstName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
-        {/* Conditional Dropdowns */}
-        {viewType === 'single-group' && (
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Group</label>
-            <select
-              value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Choose a group...</option>
-              {staffGroups.map(group => (
-                <option key={group.id} value={group.id}>{group.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {viewType === 'single-member' && (
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Staff Member</label>
-            <select
-              value={selectedMember}
-              onChange={(e) => setSelectedMember(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Choose a staff member...</option>
-              {staffMembers.map(member => (
-                <option key={member.id} value={member.id}>
-                  {member.lastName}, {member.firstName}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 mt-6">
           <button
             onClick={handleSearch}
             disabled={loading}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             {loading ? 'Searching...' : 'Search Reports'}
           </button>
           <button
             onClick={handleDownloadCSV}
             disabled={reports.length === 0}
-            className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
           >
             <Download className="w-4 h-4" />
             Download CSV
@@ -310,6 +474,11 @@ export default function ShiftReportsPage() {
                 <p className="text-sm text-gray-600 mt-1">
                   <Calendar className="inline w-4 h-4 mr-1" />
                   Period: {new Date(dateRange.startDate).toLocaleDateString()} - {new Date(dateRange.endDate).toLocaleDateString()}
+                  {(timeRange === 'weekly' || timeRange === 'biweekly') && (
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                      Week starts: {WEEK_DAYS.find(d => d.value === weekStartDay)?.label}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

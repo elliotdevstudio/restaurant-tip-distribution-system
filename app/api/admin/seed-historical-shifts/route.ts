@@ -44,7 +44,7 @@ function isBusinessClosed(date: Date): boolean {
   }
   
   // Holidays: Christmas Day & New Year's Day
-  if ((month === 12 && day === 25) || (month === 1 && day === 1) || (month === 7 && day === 4)) {
+  if ((month === 12 && day === 25) || (month === 1 && day === 1)) {
     return true;
   }
   

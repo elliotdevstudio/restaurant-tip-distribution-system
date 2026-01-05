@@ -75,16 +75,22 @@ export default function ShiftReportsPage() {
     fetchStaffData();
   }, []);
 
-  // Update selectedWeekStart when weekStartDay changes
+  // Update selectedWeekStart when weekStartDay changes (but preserve user selection)
   useEffect(() => {
-    // Find the most recent date matching weekStartDay
-    const today = new Date();
-    const currentDay = today.getDay();
-    const daysToSubtract = (currentDay - weekStartDay + 7) % 7;
-    const mostRecentStartDay = new Date(today);
-    mostRecentStartDay.setDate(today.getDate() - daysToSubtract);
-    setSelectedWeekStart(mostRecentStartDay);
-  }, [weekStartDay]);
+    if (timeRange === 'weekly' || timeRange === 'biweekly') {
+      // Find the most recent date matching weekStartDay
+      const today = new Date();
+      const currentDay = today.getDay();
+      const daysToSubtract = (currentDay - weekStartDay + 7) % 7;
+      const mostRecentStartDay = new Date(today);
+      mostRecentStartDay.setDate(today.getDate() - daysToSubtract);
+      
+      // Only auto-set if user hasn't manually selected, or if the day-of-week changed
+      if (!selectedWeekStart || selectedWeekStart.getDay() !== weekStartDay) {
+        setSelectedWeekStart(mostRecentStartDay);
+      }
+    }
+  }, [weekStartDay, timeRange]); // Don't include selectedWeekStart in dependencies!
 
   // Helper function to check if a date should be highlighted (is a valid week start)
   const isWeekStartDay = (date: Date): boolean => {

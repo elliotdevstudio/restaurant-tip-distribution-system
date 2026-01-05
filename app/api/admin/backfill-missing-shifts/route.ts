@@ -60,7 +60,13 @@ export async function POST(request: NextRequest) {
       .toArray();
 
     const existingDates = new Set(
-      existingShifts.map(shift => shift.date.toISOString().split('T')[0])
+      existingShifts.map(shift => {
+    // Handle both Date objects and strings
+      if (typeof shift.date === 'string') {
+        return shift.date; // Already a string
+      }
+        return shift.date.toISOString().split('T')[0]; // Convert Date to string
+      })
     );
 
     console.log(`📊 Found ${existingDates.size} existing shifts`);

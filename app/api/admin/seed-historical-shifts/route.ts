@@ -7,6 +7,7 @@ import { StaffService } from '../../../lib/services/staffService';
  * 
  * Creates shifts for the past 90 days using current staff members and groups
  * - Mondays & Tuesdays: Business closed (all zeros)
+ * - Holidays (Dec 25, Jan 1): Business closed (all zeros)
  * - Wed-Sun: Realistic sales and tip data
  * 
  * Security: Requires CRON_SECRET header for authorization
@@ -34,7 +35,20 @@ function generateRealisticSales(): { salesAmount: number; creditCardTips: number
 
 function isBusinessClosed(date: Date): boolean {
   const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  return dayOfWeek === 1 || dayOfWeek === 2; // Monday or Tuesday
+  const month = date.getMonth() + 1; // 1-indexed (1 = January, 12 = December)
+  const day = date.getDate();
+  
+  // Regular closed days: Monday & Tuesday
+  if (dayOfWeek === 1 || dayOfWeek === 2) {
+    return true;
+  }
+  
+  // Holidays: Christmas Day & New Year's Day
+  if ((month === 12 && day === 25) || (month === 1 && day === 1) || (month === 7 && day === 4)) {
+    return true;
+  }
+  
+  return false;
 }
 
 export async function POST(request: NextRequest) {
@@ -117,7 +131,7 @@ export async function POST(request: NextRequest) {
           const isDistributor = memberGroup.gratuityConfig.distributesGratuities;
 
           if (closed) {
-            // CLOSED DAY: All zeros
+            // CLOSED DAY: All zeros (Mon/Tue + Holidays)
             entries.push({
               staffId: member.id,
               staffName: `${member.firstName} ${member.lastName}`,
@@ -165,7 +179,7 @@ export async function POST(request: NextRequest) {
 
       // Create shift document
       shifts.push({
-        date: dateString,
+        date: dateString,  // ✅ String format (YYYY-MM-DD)
         type: 'FULL_DAY',
         entries,
         createdAt: new Date(shiftDate),

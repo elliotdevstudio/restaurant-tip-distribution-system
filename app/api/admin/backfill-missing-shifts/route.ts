@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
       .find(
         {
           date: {
-            $gte: ninetyDaysAgo,
-            $lte: today
+            $gte: ninetyDaysAgo.toISOString().split('T')[0],  
+            $lte: today.toISOString().split('T')[0]
           }
         },
         { projection: { date: 1 } }
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         // Skip if it's a holiday (business closed)
         if (!isHoliday(currentDate)) {
           missingShifts.push({
-            date: new Date(currentDate),
+            date: currentDate.toISOString().split('T')[0],
             type: 'FULL_DAY',
             entries: [],
             createdAt: new Date(),

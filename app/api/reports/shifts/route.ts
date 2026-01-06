@@ -150,7 +150,9 @@ function processShiftData(shifts: any[], query: ReportQuery): any[] {
       staffData.cashTips += entry.cashTips || 0;
       staffData.totalTips += (entry.creditCardTips || 0) + (entry.cashTips || 0);
       staffData.tipsReceived += entry.tipsReceived || 0;
-      staffData.shiftCount += 1;
+      if (entry.hoursWorked > 0) {
+        staffData.shiftCount += 1;
+      }
     });
   });
 

@@ -11,16 +11,24 @@ type ViewType = 'all-groups' | 'single-group' | 'single-member';
 type WeekStartDay = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Sunday, 6 = Saturday
 
 interface ShiftReport {
+  // Staff member fields
+  staffId?: string;
   staffName?: string;
+  groupId?: string;
   groupName?: string;
-  hoursWorked: number;
-  salesAmount: number;
-  creditCardTips: number;
-  cashTips: number;
-  totalTips: number;
-  tipsReceived: number;
-  isDistributor: boolean;
-  shiftCount: number;
+  hoursWorked?: number;
+  salesAmount?: number;
+  creditCardTips?: number;
+  cashTips?: number;
+  totalTips?: number;
+  tipsReceived?: number;
+  isDistributor?: boolean;
+  shiftCount?: number;
+  
+  // Group header fields
+  isGroupHeader?: boolean;
+  isMainHeader?: boolean;
+  groupDescription?: string;
 }
 
 const WEEK_DAYS = [
@@ -203,41 +211,55 @@ export default function ShiftReportsPage() {
     }
   };
 
-  const handleDownloadCSV = () => {
-    if (reports.length === 0) {
-      alert('No data to export');
-      return;
+  // REPLACE the handleDownloadCSV function in app/reports/page.tsx with this:
+
+const handleDownloadCSV = () => {
+  if (reports.length === 0) {
+    alert('No data to export');
+    return;
+  }
+
+  const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips/Received'];
+  const rows: any[] = [];
+  
+  reports.forEach(r => {
+    if (r.isGroupHeader) {
+      // Add group header row
+      if (r.isMainHeader) {
+        rows.push(['', '', '', '', '', '', '', '']); // Spacing before main header
+      }
+      rows.push([r.groupDescription, '', '', '', '', '', '', '']); // Header line
+    } else {
+      // Regular staff row - only process if it has the required fields
+      rows.push([
+        r.staffName || '',
+        r.groupName || '',
+        r.shiftCount || 0,
+        (r.hoursWorked || 0).toFixed(2),
+        (r.salesAmount || 0).toFixed(2),
+        (r.creditCardTips || 0).toFixed(2),
+        (r.cashTips || 0).toFixed(2),
+        ((r.isDistributor ? r.totalTips : r.tipsReceived) || 0).toFixed(2)
+      ]);
     }
+  });
 
-    // Create CSV content
-    const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips/Received'];
-    const rows = reports.map(r => [
-      r.staffName || '',
-      r.groupName || '',
-      r.shiftCount,
-      r.hoursWorked.toFixed(2),
-      r.salesAmount.toFixed(2),
-      r.creditCardTips.toFixed(2),
-      r.cashTips.toFixed(2),
-      ((r.isDistributor ? r.totalTips : r.tipsReceived) || 0).toFixed(2)
-    ]);
+  const csvContent = [
+    `Report Period: ${dateRange?.startDate || ''} to ${dateRange?.endDate || ''}`,
+    `Week Start Day: ${WEEK_DAYS.find(d => d.value === weekStartDay)?.label}`,
+    '',
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
 
-    const csvContent = [
-      `Report Period: ${dateRange?.startDate || ''} to ${dateRange?.endDate || ''}`,
-      `Week Start Day: ${WEEK_DAYS.find(d => d.value === weekStartDay)?.label}`,
-      '',
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    // Download
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `shift-reports-${dateRange?.startDate || 'unknown'}-to-${dateRange?.endDate || 'unknown'}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+  // Download
+  const blob = new Blob([csvContent], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shift-reports-${dateRange?.startDate || 'unknown'}-to-${dateRange?.endDate || 'unknown'}.csv`;
+  a.click();
+  window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -527,40 +549,60 @@ export default function ShiftReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {reports.map((report, index) => (
-                  <tr key={index} className="hover:bg-blue-50 transition-colors">
-                    {viewType !== 'single-member' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {report.staffName}
-                      </td>
-                    )}
-                    {viewType === 'all-groups' && (
+                {reports.map((report, index) => {
+                  // Check if this is a group header
+                  if (report.isGroupHeader) {
+                    return (
+                      <tr 
+                        key={`header-${report.groupId}-${index}`} 
+                        className={report.isMainHeader ? "bg-gray-200 font-bold" : "bg-gray-100 font-semibold"}
+                      >
+                        <td 
+                          colSpan={viewType === 'all-groups' ? 8 : 7} 
+                          className={`px-6 py-2 text-sm ${report.isMainHeader ? 'text-gray-900' : 'text-gray-700'}`}
+                        >
+                          {report.groupDescription}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  
+                  // Regular staff member row - only render if NOT a group header
+                  return (
+                    <tr key={`staff-${report.staffId}-${index}`} className="hover:bg-blue-50 transition-colors">
+                      {viewType !== 'single-member' && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {report.staffName}
+                        </td>
+                      )}
+                      {viewType === 'all-groups' && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 border border-blue-200 rounded">
+                            {report.groupName}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 border border-blue-200 rounded">
-                          {report.groupName}
-                        </span>
+                        {report.shiftCount}
                       </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {report.shiftCount}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.hoursWorked.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${report.salesAmount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${report.creditCardTips.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${report.cashTips.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                      ${((report.isDistributor ? report.totalTips : report.tipsReceived) || 0).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {report.hoursWorked.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${report.salesAmount.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${report.creditCardTips.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${report.cashTips.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
+                        ${((report.isDistributor ? report.totalTips : report.tipsReceived) || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

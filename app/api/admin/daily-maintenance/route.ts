@@ -14,7 +14,10 @@ export async function POST(request: NextRequest) {
     // Verify authorization
     const authHeader = request.headers.get('authorization');
     const expectedSecret = process.env.CRON_SECRET;
-
+    console.log('🔍 Received header:', authHeader);
+    console.log('🔍 Expected secret exists:', !!expectedSecret);
+    console.log('🔍 Expected secret length:', expectedSecret?.length);
+    
     if (!expectedSecret) {
       console.error('❌ CRON_SECRET not configured in environment variables');
       return NextResponse.json(
@@ -24,7 +27,8 @@ export async function POST(request: NextRequest) {
     }
 
     const providedSecret = authHeader?.replace('Bearer ', '');
-    
+    console.log('🔍 Provided secret:', providedSecret);
+    console.log('🔍 Secrets match:', providedSecret === expectedSecret);
     if (providedSecret !== expectedSecret) {
       console.error('❌ Invalid CRON_SECRET provided');
       return NextResponse.json(

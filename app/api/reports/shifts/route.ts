@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     // Connect to database
     const db = await DatabaseConnection.getDatabase('staff_management');
     const shiftsCollection = db.collection('daily_shifts');
+    const groupsCollection = db.collection('staff_groups');
 
     // Build query filter
     const filter: any = {
@@ -38,14 +39,25 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    // Fetch shifts
-    const shifts = await shiftsCollection
-      .find(filter)
-      .sort({ date: 1 })
-      .toArray();
+    // Fetch shifts and groups
+    const [shifts, groups] = await Promise.all([
+      shiftsCollection.find(filter).sort({ date: 1 }).toArray(),
+      groupsCollection.find({}).toArray()
+    ]);
+
+    // Create group config map
+    const groupConfigMap = new Map();
+    groups.forEach(group => {
+      groupConfigMap.set(group._id.toString(), {
+        name: group.name,
+        isDistributor: group.gratuityConfig?.distributesGratuities || false,
+        isRecipient: group.gratuityConfig?.receivesGratuities || false,
+        tipOutRecipients: group.gratuityConfig?.tipOutRecipients || []
+      });
+    });
 
     // Process data based on viewType
-    const reports = processShiftData(shifts, query);
+    const reports = processShiftData(shifts, query, groupConfigMap, groups);
 
     return NextResponse.json({
       success: true,
@@ -68,16 +80,18 @@ export async function GET(request: NextRequest) {
 }
 
 function calculateDateRange(query: ReportQuery): { startDate: string; endDate: string } {
-  const today = new Date();
-  let startDate: Date;
-  let endDate: Date = today;
-
-  if (query.timeRange === 'custom' && query.startDate && query.endDate) {
+  // If dates are provided in query params (from frontend), use them directly
+  if (query.startDate && query.endDate) {
     return {
       startDate: query.startDate,
       endDate: query.endDate
     };
   }
+
+  // Fallback: calculate from today (should rarely happen)
+  const today = new Date();
+  let startDate: Date;
+  let endDate: Date = today;
 
   switch (query.timeRange) {
     case 'daily':
@@ -106,7 +120,12 @@ function calculateDateRange(query: ReportQuery): { startDate: string; endDate: s
   };
 }
 
-function processShiftData(shifts: any[], query: ReportQuery): any[] {
+function processShiftData(
+  shifts: any[], 
+  query: ReportQuery, 
+  groupConfigMap: Map<string, any>, 
+  allGroups: any[]
+): any[] {
   // Use a Map to aggregate data by staff member
   const aggregatedData = new Map<string, any>();
 
@@ -150,21 +169,100 @@ function processShiftData(shifts: any[], query: ReportQuery): any[] {
       staffData.cashTips += entry.cashTips || 0;
       staffData.totalTips += (entry.creditCardTips || 0) + (entry.cashTips || 0);
       staffData.tipsReceived += entry.tipsReceived || 0;
+      
+      // Only count as a shift if hours were worked
       if (entry.hoursWorked > 0) {
         staffData.shiftCount += 1;
       }
     });
   });
 
-  // Convert Map to array and sort by staff name
-  const reports = Array.from(aggregatedData.values()).sort((a, b) => {
-    // Sort by group name first (if showing all groups)
-    if (query.viewType === 'all-groups' && a.groupName !== b.groupName) {
-      return (a.groupName || '').localeCompare(b.groupName || '');
+  // Convert Map to array
+  let reports = Array.from(aggregatedData.values());
+
+  // Build reports with group headers
+  const reportsWithHeaders: any[] = [];
+  const groupedByGroup = new Map<string, any[]>();
+
+  // Group staff by their group
+  reports.forEach(report => {
+    if (!groupedByGroup.has(report.groupId)) {
+      groupedByGroup.set(report.groupId, []);
     }
-    // Then by staff name
-    return (a.staffName || '').localeCompare(b.staffName || '');
+    groupedByGroup.get(report.groupId).push(report);
   });
 
-  return reports;
+  // Build final array with headers
+  Array.from(groupedByGroup.entries())
+    .sort((a, b) => a[1][0].groupName.localeCompare(b[1][0].groupName))
+    .forEach(([groupId, members]) => {
+      const groupConfig = groupConfigMap.get(groupId);
+      const firstMember = members[0];
+
+      if (groupConfig) {
+        const groupName = firstMember.groupName;
+        const isDistributor = groupConfig.isDistributor;
+        
+        // Build group description lines
+        const headerLines: string[] = [];
+        
+        if (isDistributor) {
+          // Main distributor header
+          headerLines.push(`${groupName} - distributor`);
+          
+          // Add tip-out details (one line per recipient)
+          groupConfig.tipOutRecipients.forEach((tipOut: any) => {
+            // Find recipient group name
+            const recipientGroup = allGroups.find(g => g._id.toString() === tipOut.recipientGroupId);
+            const recipientName = recipientGroup?.name || 'Unknown Group';
+            
+            if (tipOut.tipOutType === 'PERCENTAGE') {
+              headerLines.push(`  ${tipOut.amount}% of sales to ${recipientName}`);
+            } else {
+              headerLines.push(`  $${tipOut.amount} (fixed) to ${recipientName}`);
+            }
+          });
+        } else {
+          // Recipient group - find who tips them out
+          const distributors = allGroups.filter(g => 
+            g.gratuityConfig?.tipOutRecipients?.some((r: any) => r.recipientGroupId === groupId)
+          );
+          
+          if (distributors.length > 0) {
+            const fromDistributor = distributors[0];
+            const tipOutConfig = fromDistributor.gratuityConfig.tipOutRecipients.find(
+              (r: any) => r.recipientGroupId === groupId
+            );
+            
+            let recipientDesc = `${groupName} - recipient`;
+            if (tipOutConfig?.tipPoolId) {
+              recipientDesc += ' - pooled';
+            }
+            recipientDesc += ` - receives from ${fromDistributor.name}`;
+            
+            headerLines.push(recipientDesc);
+          } else {
+            headerLines.push(`${groupName} - recipient`);
+          }
+        }
+
+        // Add group header row(s)
+        headerLines.forEach((line, idx) => {
+          reportsWithHeaders.push({
+            isGroupHeader: true,
+            isMainHeader: idx === 0,
+            groupName: firstMember.groupName,
+            groupDescription: line,
+            groupId: groupId
+          });
+        });
+      }
+
+      // Add staff members (sorted by name)
+      members
+        .sort((a, b) => a.staffName.localeCompare(b.staffName))
+        .forEach(member => reportsWithHeaders.push(member));
+    });
+
+  return reportsWithHeaders;
 }

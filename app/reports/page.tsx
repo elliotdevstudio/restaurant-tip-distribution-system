@@ -586,16 +586,16 @@ const handleDownloadCSV = () => {
                         {report.shiftCount}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {report.hoursWorked.toFixed(2)}
+                        {(report.hoursWorked || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${report.salesAmount.toFixed(2)}
+                        ${(report.salesAmount || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${report.creditCardTips.toFixed(2)}
+                        ${(report.creditCardTips || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${report.cashTips.toFixed(2)}
+                        ${(report.cashTips || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
                         ${((report.isDistributor ? report.totalTips : report.tipsReceived) || 0).toFixed(2)}

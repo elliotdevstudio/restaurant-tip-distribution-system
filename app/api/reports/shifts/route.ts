@@ -189,7 +189,10 @@ function processShiftData(
     if (!groupedByGroup.has(report.groupId)) {
       groupedByGroup.set(report.groupId, []);
     }
-    groupedByGroup.get(report.groupId).push(report);
+    const group = groupedByGroup.get(report.groupId);
+    if (group) {
+      group.push(report);
+    }
   });
 
   // Build final array with headers

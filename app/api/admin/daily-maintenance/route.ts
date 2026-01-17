@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseConnection } from '../../../lib/mongodb';
 
-/**../
+/**
  * Daily Maintenance API Endpoint
  * 
  * This endpoint is called by GitHub Actions daily to:
@@ -14,10 +14,28 @@ export async function POST(request: NextRequest) {
     // Verify authorization
     const authHeader = request.headers.get('authorization');
     const expectedSecret = process.env.CRON_SECRET;
-    console.log('🔍 Received header:', authHeader);
-    console.log('🔍 Expected secret exists:', !!expectedSecret);
-    console.log('🔍 Expected secret length:', expectedSecret?.length);
     
+    // TEMPORARY DEBUG - Return comparison details
+    const providedSecret = authHeader?.replace('Bearer ', '');
+    
+    return NextResponse.json({
+      debug: {
+        hasAuthHeader: !!authHeader,
+        authHeaderPreview: authHeader?.substring(0, 20) + '...',
+        hasExpectedSecret: !!expectedSecret,
+        expectedLength: expectedSecret?.length || 0,
+        providedLength: providedSecret?.length || 0,
+        firstCharsExpected: expectedSecret?.substring(0, 10) || 'none',
+        firstCharsProvided: providedSecret?.substring(0, 10) || 'none',
+        lastCharsExpected: expectedSecret?.substring(expectedSecret.length - 5) || 'none',
+        lastCharsProvided: providedSecret?.substring(providedSecret.length - 5) || 'none',
+        match: providedSecret === expectedSecret,
+        trimmedMatch: providedSecret?.trim() === expectedSecret?.trim()
+      }
+    });
+
+    // COMMENTED OUT FOR NOW - Will restore after debugging
+    /*
     if (!expectedSecret) {
       console.error('❌ CRON_SECRET not configured in environment variables');
       return NextResponse.json(
@@ -26,9 +44,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const providedSecret = authHeader?.replace('Bearer ', '');
-    console.log('🔍 Provided secret:', providedSecret);
-    console.log('🔍 Secrets match:', providedSecret === expectedSecret);
     if (providedSecret !== expectedSecret) {
       console.error('❌ Invalid CRON_SECRET provided');
       return NextResponse.json(
@@ -84,6 +99,7 @@ export async function POST(request: NextRequest) {
       message: 'Daily maintenance completed successfully',
       stats
     });
+    */
 
   } catch (error) {
     console.error('❌ Daily maintenance failed:', error);

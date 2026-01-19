@@ -79,7 +79,7 @@ const DistributorRow = memo(({
       <td className="px-6 py-4 text-sm text-gray-600">
         {getTipPercentage(entry) ? `${getTipPercentage(entry)}%` : '-'}
       </td>
-      <td className="px-6 py-4 text-sm font-medium text-orange-600">
+      <td className="px-6 py-4 text-sm font-medium text-orange-600 whitespace-nowrap">
         {entry.tipOutAmount ? `- ${formatCurrency(entry.tipOutAmount)}` : '-'}
       </td>
       <td className="px-6 py-4 text-sm font-bold text-green-600">
@@ -540,8 +540,8 @@ export default function DemoPage() {
 
       {/* Controls Card */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex items-end gap-4 mb-6">
-          <div className="flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+          <div className="w-full sm:flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               Shift Date
@@ -557,32 +557,34 @@ export default function DemoPage() {
             />
           </div>
           
-          <button
-            onClick={handleGenerateData}
-            disabled={staffMembers.length === 0 || staffGroups.length === 0}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-          >
-            {demoEntries.length > 0 ? 'Regenerate Data' : 'Generate Data'}
-          </button>
-          
-          {demoEntries.length > 0 && (
-            <>
-              <button
-                onClick={handleClearData}
-                className="px-6 py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium"
-              >
-                Clear Data
-              </button>
-              
-              <button
-                onClick={handleSaveShift}
-                disabled={isLoading}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Saving...' : '💾 Save Shift'}
-              </button>
-            </>
-          )}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
+            <button
+              onClick={handleGenerateData}
+              disabled={staffMembers.length === 0 || staffGroups.length === 0}
+              className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {demoEntries.length > 0 ? 'Regenerate Data' : 'Generate Data'}
+            </button>
+            
+            {demoEntries.length > 0 && (
+              <>
+                <button
+                  onClick={handleClearData}
+                  className="w-full sm:w-auto px-6 py-3 sm:py-2 border-2 border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium"
+                >
+                  Clear Data
+                </button>
+                
+                <button
+                  onClick={handleSaveShift}
+                  disabled={isLoading}
+                  className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? 'Saving...' : '💾 Save Shift'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

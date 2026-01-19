@@ -337,36 +337,44 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
   }
 
   static async getDailyShiftsByDateRange(
-  startDate: Date,
-  endDate: Date,
-  type?: ShiftType
+    startDate: Date,
+    endDate: Date,
+    type?: ShiftType
   ): Promise<DailyShiftWithId[]> {
-  console.log(`📅 Fetching shifts from ${startDate.toISOString()} to ${endDate.toISOString()}`);
-  const db = await this.getDb();
-  
-  // Normalize dates to midnight UTC
-  const normalizedStart = new Date(startDate.setHours(0, 0, 0, 0));
-  const normalizedEnd = new Date(endDate.setHours(23, 59, 59, 999));
-  
-  const query: any = {
-    date: {
-      $gte: normalizedStart,
-      $lte: normalizedEnd
+    console.log(`📅 Fetching shifts from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    const db = await this.getDb();
+    
+    // Convert to UTC midnight and format as YYYY-MM-DD strings
+    const utcStart = new Date(startDate);
+    utcStart.setUTCHours(0, 0, 0, 0);
+    const startDateString = utcStart.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    const utcEnd = new Date(endDate);
+    utcEnd.setUTCHours(23, 59, 59, 999);
+    const endDateString = utcEnd.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    console.log(`📅 Query range: ${startDateString} to ${endDateString}`);
+    
+    const query: any = {
+      date: {
+        $gte: startDateString,  // String comparison
+        $lte: endDateString     // String comparison
+      }
+    };
+    
+    if (type) {
+      query.type = type;
     }
-  };
-  
-  if (type) {
-    query.type = type;
-  }
-  
-  const shifts = await db.collection<DailyShiftDocument>('daily_shifts')
-    .find(query)
-    .sort({ date: 1 })
-    .toArray();
-  
-  console.log(`✅ Found ${shifts.length} shifts in date range`);
-  return shifts.map(transformDailyShift);
-  }
+    
+    const shifts = await db.collection<DailyShiftDocument>('daily_shifts')
+      .find(query)
+      .sort({ date: 1 })
+      .toArray();
+    
+    console.log(`✅ Found ${shifts.length} shifts in date range`);
+    return shifts.map(transformDailyShift);
+    }
+
 // ============================================
 // REPORTING / ANALYTICS METHODS
 // ============================================
@@ -625,19 +633,43 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
     
 
   static async deleteStaffGroup(groupId: string): Promise<void> {
-    console.log('🗑️ Deleting staff group:', groupId);
-    const db = await this.getDb();
+  console.log('🗑️ Deleting staff group:', groupId);
+  const db = await this.getDb();
+  const objectId = new ObjectId(groupId);
+  
+  try {
+    // STEP 1: Remove this group from all other groups' recipientGroupIds
+    console.log(`  Removing ${groupId} from recipientGroupIds in other groups...`);
+    const removeFromRecipients = await db.collection('staff_groups').updateMany(
+      { 'gratuityConfig.recipientGroupIds': objectId },
+      { $pull: { 'gratuityConfig.recipientGroupIds': objectId } } as any
+    );
+    console.log(`  ✓ Updated ${removeFromRecipients.modifiedCount} groups (removed from recipientGroupIds)`);
     
-    const result = await db.collection('staff_groups').deleteOne({ 
-      _id: new ObjectId(groupId) 
+    // STEP 2: Remove this group from all other groups' sourceGroupIds
+    console.log(`  Removing ${groupId} from sourceGroupIds in other groups...`);
+    const removeFromSources = await db.collection('staff_groups').updateMany(
+      { 'gratuityConfig.sourceGroupIds': objectId },
+      { $pull: { 'gratuityConfig.sourceGroupIds': objectId } } as any
+    );
+    console.log(`  ✓ Updated ${removeFromSources.modifiedCount} groups (removed from sourceGroupIds)`);
+    
+    // STEP 3: Delete the group itself
+    console.log(`  Deleting group document...`);
+    const deleteResult = await db.collection('staff_groups').deleteOne({ 
+      _id: objectId 
     });
     
-    if (result.deletedCount === 0) {
+    if (deleteResult.deletedCount === 0) {
       throw new Error('Group not found or already deleted');
     }
     
-    console.log('✅ Successfully deleted staff group');
+    console.log('✅ Successfully deleted staff group and cleaned up all references');
+  } catch (error) {
+    console.error('❌ Error deleting staff group:', error);
+    throw error;
   }
+}
 
   
   /**

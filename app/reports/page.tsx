@@ -46,6 +46,7 @@ export default function ShiftReportsPage() {
   const [viewType, setViewType] = useState<ViewType>('all-groups');
   const [weekStartDay, setWeekStartDay] = useState<WeekStartDay>(0); // Default: Sunday
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date | null>(new Date()); // For weekly/biweekly picker
+  const [selectedMonth, setSelectedMonth] = useState<Date | null>(new Date()); // For monthly picker
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [selectedGroup, setSelectedGroup] = useState('');
@@ -55,6 +56,11 @@ export default function ShiftReportsPage() {
   const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string } | null>(null);
   const [staffGroups, setStaffGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [staffMembers, setStaffMembers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
+
+  const formatDateString = (dateString: string): string => {
+    const [year, month, day] = dateString.split('-');
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
+  };
 
   // Fetch staff groups and members on mount
   useEffect(() => {
@@ -98,7 +104,7 @@ export default function ShiftReportsPage() {
         setSelectedWeekStart(mostRecentStartDay);
       }
     }
-  }, [weekStartDay, timeRange]); // Don't include selectedWeekStart in dependencies!
+  }, [weekStartDay, timeRange]);
 
   // Helper function to check if a date should be highlighted (is a valid week start)
   const isWeekStartDay = (date: Date): boolean => {
@@ -112,7 +118,6 @@ export default function ShiftReportsPage() {
 
   // Calculate date range based on time range and week start day
   const calculateDateRange = (): { startDate: string; endDate: string } | null => {
-    const today = new Date();
     let start: Date;
     let end: Date;
 
@@ -120,15 +125,19 @@ export default function ShiftReportsPage() {
       case 'daily':
         if (!customStartDate) return null;
         start = new Date(customStartDate);
+        start.setUTCHours(0, 0, 0, 0);
         end = new Date(customStartDate);
+        end.setUTCHours(23, 59, 59, 999);
         break;
 
       case 'weekly':
         if (!selectedWeekStart) return null;
         // Use the selected date as the week start
         start = new Date(selectedWeekStart);
+        start.setUTCHours(0, 0, 0, 0);
         // End is 6 days later
         end = new Date(selectedWeekStart);
+        end.setUTCHours(23, 59, 59, 999);
         end.setDate(end.getDate() + 6);
         break;
 
@@ -136,22 +145,31 @@ export default function ShiftReportsPage() {
         if (!selectedWeekStart) return null;
         // Use the selected date as the bi-week start
         start = new Date(selectedWeekStart);
+        start.setUTCHours(0, 0, 0, 0);
         // End is 13 days later (2 weeks)
         end = new Date(selectedWeekStart);
+        end.setUTCHours(23, 59, 59, 999);
         end.setDate(end.getDate() + 13);
         break;
 
       case 'monthly':
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        if (!selectedMonth) return null;
+        // Start of month
+        start = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+        start.setUTCHours(0, 0, 0, 0);
+        // End of month
+        end = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+        end.setUTCHours(23, 59, 59, 999);
         break;
 
       case 'custom':
         if (!customStartDate || !customEndDate) {
           return null;
         }
-        start = customStartDate;
-        end = customEndDate;
+        start = new Date(customStartDate);
+        start.setUTCHours(0, 0, 0, 0);
+        end = new Date(customEndDate);
+        end.setUTCHours(23, 59, 59, 999);
         break;
 
       default:
@@ -171,7 +189,7 @@ export default function ShiftReportsPage() {
       const range = calculateDateRange();
       
       if (!range) {
-        alert('Please select valid dates for custom range');
+        alert('Please select valid dates');
         setLoading(false);
         return;
       }
@@ -211,55 +229,53 @@ export default function ShiftReportsPage() {
     }
   };
 
-  // REPLACE the handleDownloadCSV function in app/reports/page.tsx with this:
-
-const handleDownloadCSV = () => {
-  if (reports.length === 0) {
-    alert('No data to export');
-    return;
-  }
-
-  const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips/Received'];
-  const rows: any[] = [];
-  
-  reports.forEach(r => {
-    if (r.isGroupHeader) {
-      // Add group header row
-      if (r.isMainHeader) {
-        rows.push(['', '', '', '', '', '', '', '']); // Spacing before main header
-      }
-      rows.push([r.groupDescription, '', '', '', '', '', '', '']); // Header line
-    } else {
-      // Regular staff row - only process if it has the required fields
-      rows.push([
-        r.staffName || '',
-        r.groupName || '',
-        r.shiftCount || 0,
-        (r.hoursWorked || 0).toFixed(2),
-        (r.salesAmount || 0).toFixed(2),
-        (r.creditCardTips || 0).toFixed(2),
-        (r.cashTips || 0).toFixed(2),
-        ((r.isDistributor ? r.totalTips : r.tipsReceived) || 0).toFixed(2)
-      ]);
+  const handleDownloadCSV = () => {
+    if (reports.length === 0) {
+      alert('No data to export');
+      return;
     }
-  });
 
-  const csvContent = [
-    `Report Period: ${dateRange?.startDate || ''} to ${dateRange?.endDate || ''}`,
-    `Week Start Day: ${WEEK_DAYS.find(d => d.value === weekStartDay)?.label}`,
-    '',
-    headers.join(','),
-    ...rows.map(row => row.join(','))
-  ].join('\n');
+    const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips/Received'];
+    const rows: any[] = [];
+    
+    reports.forEach(r => {
+      if (r.isGroupHeader) {
+        // Add group header row
+        if (r.isMainHeader) {
+          rows.push(['', '', '', '', '', '', '', '']); // Spacing before main header
+        }
+        rows.push([r.groupDescription, '', '', '', '', '', '', '']); // Header line
+      } else {
+        // Regular staff row - only process if it has the required fields
+        rows.push([
+          r.staffName || '',
+          r.groupName || '',
+          r.shiftCount || 0,
+          (r.hoursWorked || 0).toFixed(2),
+          (r.salesAmount || 0).toFixed(2),
+          (r.creditCardTips || 0).toFixed(2),
+          (r.cashTips || 0).toFixed(2),
+          ((r.isDistributor ? r.totalTips : r.tipsReceived) || 0).toFixed(2)
+        ]);
+      }
+    });
 
-  // Download
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `shift-reports-${dateRange?.startDate || 'unknown'}-to-${dateRange?.endDate || 'unknown'}.csv`;
-  a.click();
-  window.URL.revokeObjectURL(url);
+    const csvContent = [
+      `Report Period: ${dateRange?.startDate || ''} to ${dateRange?.endDate || ''}`,
+      `Week Start Day: ${WEEK_DAYS.find(d => d.value === weekStartDay)?.label}`,
+      '',
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shift-reports-${dateRange?.startDate || 'unknown'}-to-${dateRange?.endDate || 'unknown'}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -341,24 +357,61 @@ const handleDownloadCSV = () => {
           </div>
         </div>
 
+        {/* Conditional Group/Member Dropdowns */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {viewType === 'single-group' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Group</label>
+              <select
+                value={selectedGroup}
+                onChange={(e) => setSelectedGroup(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Choose a group...</option>
+                {staffGroups.map(group => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {viewType === 'single-member' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Staff Member</label>
+              <select
+                value={selectedMember}
+                onChange={(e) => setSelectedMember(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Choose a staff member...</option>
+                {staffMembers.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.lastName}, {member.firstName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
         {/* Week/Bi-week Start Date Picker */}
         {(timeRange === 'weekly' || timeRange === 'biweekly') && (
           <div className="mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select {timeRange === 'weekly' ? 'Week' : 'Bi-Week'} Start Date
             </label>
-            <div className="flex items-start gap-4">
+            <div className="flex flex-col md:flex-row items-start gap-4 w-full">
               <DatePicker
                 selected={selectedWeekStart}
                 onChange={(date: Date | null) => setSelectedWeekStart(date)}
                 filterDate={filterWeekStartDates}
                 dateFormat="MM/dd/yyyy"
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full md:w-auto"
                 placeholderText={`Select a ${WEEK_DAYS.find(d => d.value === weekStartDay)?.label}`}
                 highlightDates={[selectedWeekStart].filter(Boolean) as Date[]}
                 inline
               />
-              <div className="flex-1 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+              <div className="w-full md:flex-1 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-900 font-medium mb-2">
                   📅 {timeRange === 'weekly' ? 'Week' : 'Bi-Week'} Period
                 </p>
@@ -372,6 +425,44 @@ const handleDownloadCSV = () => {
                     </p>
                     <p className="text-xs text-blue-600 mt-2">
                       Only {WEEK_DAYS.find(d => d.value === weekStartDay)?.label}s are selectable
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Monthly Date Picker */}
+        {timeRange === 'monthly' && (
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Month
+            </label>
+            <div className="flex flex-col md:flex-row items-start gap-4 w-full">
+              <DatePicker
+                selected={selectedMonth}
+                onChange={(date: Date | null) => setSelectedMonth(date)}
+                dateFormat="MMMM yyyy"
+                showMonthYearPicker
+                className="px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full md:w-auto"
+                placeholderText="Select a month"
+                inline
+              />
+              <div className="w-full md:flex-1 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-900 font-medium mb-2">
+                  📅 Month Period
+                </p>
+                {selectedMonth && (
+                  <>
+                    <p className="text-sm text-blue-700">
+                      <strong>Start:</strong> {new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).toLocaleDateString()}
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      <strong>End:</strong> {new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-2">
+                      {new Date(selectedMonth.getFullYear(), selectedMonth.getMonth()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                     </p>
                   </>
                 )}
@@ -422,55 +513,18 @@ const handleDownloadCSV = () => {
               selected={customStartDate}
               onChange={(date: Date | null) => {
                 setCustomStartDate(date);
-                setCustomEndDate(date); // Same day for daily
+                setCustomEndDate(date);
               }}
               dateFormat="MM/dd/yyyy"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholderText="Select a date"
-              maxDate={new Date()} // Can't select future dates
+              maxDate={new Date()}
             />
           </div>
         )}
 
-        {/* Conditional Group/Member Dropdowns */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {viewType === 'single-group' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Group</label>
-              <select
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Choose a group...</option>
-                {staffGroups.map(group => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {viewType === 'single-member' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Staff Member</label>
-              <select
-                value={selectedMember}
-                onChange={(e) => setSelectedMember(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Choose a staff member...</option>
-                {staffMembers.map(member => (
-                  <option key={member.id} value={member.id}>
-                    {member.lastName}, {member.firstName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
         {/* Action Buttons */}
-        <div className="flex gap-3 mt-6">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-6">
           <button
             onClick={handleSearch}
             disabled={loading}
@@ -481,7 +535,7 @@ const handleDownloadCSV = () => {
           <button
             onClick={handleDownloadCSV}
             disabled={reports.length === 0}
-            className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+            className="w-full sm:w-auto px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
           >
             <Download className="w-4 h-4" />
             Download CSV
@@ -500,7 +554,7 @@ const handleDownloadCSV = () => {
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
                   <Calendar className="inline w-4 h-4 mr-1" />
-                  Period: {new Date(dateRange.startDate).toLocaleDateString()} - {new Date(dateRange.endDate).toLocaleDateString()}
+                  Period: {formatDateString(dateRange.startDate)} - {formatDateString(dateRange.endDate)}
                   {(timeRange === 'weekly' || timeRange === 'biweekly') && (
                     <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
                       Week starts: {WEEK_DAYS.find(d => d.value === weekStartDay)?.label}

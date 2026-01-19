@@ -8,6 +8,7 @@ import {
 } from '../../lib/hooks/useStaffData';
 import StaffGroupForm from '../../components/staff/StaffGroupForm';
 import { UsersRound, Trash2, Edit3, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
+import '../../animations.css';
 
 export default function StaffGroupsPage() {
   const { members, groups, isLoading, isError, error, refreshGroups } = useStaffData();
@@ -81,7 +82,7 @@ export default function StaffGroupsPage() {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4 md:gap-0">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
               <UsersRound className="w-6 h-6 text-purple-600" />
@@ -93,7 +94,7 @@ export default function StaffGroupsPage() {
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm hover:shadow-md"
+            className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm hover:shadow-md"
           >
             + Create New Group
           </button>
@@ -101,16 +102,16 @@ export default function StaffGroupsPage() {
       </div>
 
       {/* Groups List */}
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {groups.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12">
+          <div className="bg-white rounded-lg shadow-md p-6 md:p-12">
             <div className="text-center">
               <UsersRound className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No Staff Groups Yet</h3>
               <p className="text-gray-600 mb-6">Create your first group to start organizing staff and configuring tip distribution</p>
               <button
                 onClick={() => setShowForm(true)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="px-6 py-3 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
                 Create Your First Group
               </button>
@@ -124,33 +125,33 @@ export default function StaffGroupsPage() {
             const sourceCount = group.gratuityConfig.sourceGroupIds?.length || 0;
 
             return (
-              <div key={group.id} className="bg-white rounded-lg shadow-md overflow-hidden border-2 border-gray-200 hover:border-blue-300 transition-all">
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <h3 className="text-xl font-bold text-gray-900">
+              <div key={group.id} className="bg-white rounded-lg shadow-md overflow-hidden border-2 border-gray-200 hover:border-blue-300 transition-all animate-fade-in-slide-right">
+                <div className="p-4 md:p-6">
+                  <div className="flex flex-col md:flex-row justify-between items-start gap-4 md:gap-0 mb-4">
+                    <div className="flex-1 w-full">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-3">
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900">
                           {group.name}
                         </h3>
-                        <span className={`px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1.5 ${
+                        <span className={`px-3 py-1 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 ${
                           isDistributor 
                             ? 'bg-blue-100 text-blue-700 border border-blue-200' 
                             : 'bg-green-100 text-green-700 border border-green-200'
                         }`}>
                           {isDistributor ? (
                             <>
-                              <TrendingUp className="w-4 h-4" />
+                              <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
                               Distributor
                             </>
                           ) : (
                             <>
-                              <TrendingDown className="w-4 h-4" />
+                              <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />
                               Recipient
                             </>
                           )}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
                         <span className="flex items-center gap-1.5">
                           <UsersRound className="w-4 h-4" />
                           {memberCount} {memberCount === 1 ? 'member' : 'members'}
@@ -167,28 +168,28 @@ export default function StaffGroupsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       <button
                         onClick={() => handleEdit(group)}
-                        className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 border-2 border-blue-300 rounded-lg hover:bg-blue-50 transition-colors font-medium flex items-center gap-2"
+                        className="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-xs sm:text-sm text-blue-600 hover:text-blue-700 border-2 border-blue-300 rounded-lg hover:bg-blue-50 transition-colors font-medium flex items-center justify-center sm:justify-start gap-2"
                       >
                         <Edit3 className="w-4 h-4" />
-                        Edit
+                        <span>Edit</span>
                       </button>
                       <button
                         onClick={() => handleDelete(group.id, group.name)}
-                        className="px-4 py-2 text-sm text-red-600 hover:text-red-700 border-2 border-red-300 rounded-lg hover:bg-red-50 transition-colors font-medium flex items-center gap-2"
+                        className="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-xs sm:text-sm text-red-600 hover:text-red-700 border-2 border-red-300 rounded-lg hover:bg-red-50 transition-colors font-medium flex items-center justify-center sm:justify-start gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
-                        Delete
+                        <span>Delete</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Group Configuration Details */}
                   {isDistributor && (
-                    <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                      <div className="text-sm">
+                    <div className="mt-4 p-3 md:p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                      <div className="text-xs md:text-sm">
                         <div className="font-semibold text-blue-900 mb-2">Distribution Configuration:</div>
                         <div className="text-blue-700 space-y-1.5">
                           <div className="flex items-start gap-2">
@@ -207,8 +208,8 @@ export default function StaffGroupsPage() {
                   )}
 
                   {!isDistributor && (
-                    <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
-                      <div className="text-sm">
+                    <div className="mt-4 p-3 md:p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+                      <div className="text-xs md:text-sm">
                         <div className="font-semibold text-green-900 mb-2">Receives:</div>
                         <div className="text-green-700 font-medium">
                           {group.gratuityConfig.distributionType === 'percentage' 
@@ -223,12 +224,12 @@ export default function StaffGroupsPage() {
                   {/* Members List */}
                   {memberCount > 0 && (
                     <div className="mt-4 pt-4 border-t-2 border-gray-100">
-                      <div className="text-sm font-semibold text-gray-700 mb-3">Group Members:</div>
+                      <div className="text-xs md:text-sm font-semibold text-gray-700 mb-3">Group Members:</div>
                       <div className="flex flex-wrap gap-2">
                         {group.staffMemberIds.map(memberId => {
                           const member = members.find(m => m.id === memberId);
                           return member ? (
-                            <span key={memberId} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-200 transition-colors">
+                            <span key={memberId} className="px-2 md:px-3 py-1.5 md:py-1 bg-gray-100 text-gray-700 rounded-lg text-xs md:text-sm font-medium border border-gray-200 hover:bg-gray-200 transition-colors">
                               {member.firstName} {member.lastName}
                             </span>
                           ) : null;
@@ -239,7 +240,7 @@ export default function StaffGroupsPage() {
 
                   {memberCount === 0 && (
                     <div className="mt-4 pt-4 border-t-2 border-gray-100">
-                      <div className="flex items-center gap-2 text-sm text-gray-500 italic">
+                      <div className="flex items-center gap-2 text-xs md:text-sm text-gray-500 italic">
                         <AlertCircle className="w-4 h-4" />
                         No members assigned to this group yet
                       </div>

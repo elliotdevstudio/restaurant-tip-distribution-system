@@ -1,0 +1,103 @@
+/* ============================================
+   FADE IN + SLIDE LEFT TO RIGHT ANIMATIONS
+   ============================================ */
+
+@keyframes fadeInSlideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ============================================
+   FADE IN + SLIDE BOTTOM TO TOP ANIMATIONS
+   ============================================ */
+
+@keyframes fadeInSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   FADE IN + SLIDE TOP TO BOTTOM (Mobile Menu)
+   ============================================ */
+
+@keyframes fadeInSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   ANIMATION UTILITY CLASSES
+   ============================================ */
+
+/* For staff groups and report results - left to right slide */
+.animate-fade-in-slide-right {
+  animation: fadeInSlideRight 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Stagger effect for multiple items - left to right */
+.animate-fade-in-slide-right:nth-child(1) { animation-delay: 0.05s; }
+.animate-fade-in-slide-right:nth-child(2) { animation-delay: 0.1s; }
+.animate-fade-in-slide-right:nth-child(3) { animation-delay: 0.15s; }
+.animate-fade-in-slide-right:nth-child(4) { animation-delay: 0.2s; }
+.animate-fade-in-slide-right:nth-child(5) { animation-delay: 0.25s; }
+.animate-fade-in-slide-right:nth-child(6) { animation-delay: 0.3s; }
+.animate-fade-in-slide-right:nth-child(7) { animation-delay: 0.35s; }
+.animate-fade-in-slide-right:nth-child(8) { animation-delay: 0.4s; }
+.animate-fade-in-slide-right:nth-child(9) { animation-delay: 0.45s; }
+.animate-fade-in-slide-right:nth-child(10) { animation-delay: 0.5s; }
+.animate-fade-in-slide-right:nth-child(n+11) { animation-delay: 0.55s; }
+
+/* For staff members - bottom to top slide */
+.animate-fade-in-slide-up {
+  animation: fadeInSlideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Stagger effect for multiple staff member items - bottom to top */
+.animate-fade-in-slide-up:nth-child(1) { animation-delay: 0.05s; }
+.animate-fade-in-slide-up:nth-child(2) { animation-delay: 0.1s; }
+.animate-fade-in-slide-up:nth-child(3) { animation-delay: 0.15s; }
+.animate-fade-in-slide-up:nth-child(4) { animation-delay: 0.2s; }
+.animate-fade-in-slide-up:nth-child(5) { animation-delay: 0.25s; }
+.animate-fade-in-slide-up:nth-child(6) { animation-delay: 0.3s; }
+.animate-fade-in-slide-up:nth-child(7) { animation-delay: 0.35s; }
+.animate-fade-in-slide-up:nth-child(8) { animation-delay: 0.4s; }
+.animate-fade-in-slide-up:nth-child(9) { animation-delay: 0.45s; }
+.animate-fade-in-slide-up:nth-child(10) { animation-delay: 0.5s; }
+.animate-fade-in-slide-up:nth-child(n+11) { animation-delay: 0.55s; }
+
+/* For mobile menu - top to bottom slide */
+.animate-fade-in-slide-down {
+  animation: fadeInSlideDown 0.3s ease-out forwards;
+}
+
+/* ============================================
+   REDUCED MOTION SUPPORT (Accessibility)
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-slide-right,
+  .animate-fade-in-slide-up,
+  .animate-fade-in-slide-down {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

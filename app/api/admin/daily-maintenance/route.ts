@@ -48,20 +48,22 @@ function calculateTipOutForDistributor(
   let totalTipOut = 0;
   const totalTips = (entry.creditCardTips || 0) + (entry.cashTips || 0);
   const salesAmount = entry.salesAmount || 0;
-  const processedPools = new Set<string>(); // Track pools we've already counted
+  const processedPools = new Set<string>();
 
-  distributorGroup.gratuityConfig.recipientGroupIds.forEach((recipientId: string) => {
-    const recipientGroup = allGroups.find((g: any) => g._id.toString() === recipientId);
+  distributorGroup.gratuityConfig.recipientGroupIds.forEach((recipientId: any) => {
+    // Convert recipientId to string for comparison
+    const recipientIdStr = recipientId.toString();
+    
+    const recipientGroup = allGroups.find((g: any) => g._id.toString() === recipientIdStr);
     if (!recipientGroup) return;
 
     const tipPoolId = recipientGroup.gratuityConfig?.tipPoolId;
     
-    // If this group is in a pool, check if we've already processed this pool
     if (tipPoolId) {
-      if (processedPools.has(tipPoolId)) {
-        return; // Skip - already counted this pool
+      if (processedPools.has(tipPoolId.toString())) {
+        return;
       }
-      processedPools.add(tipPoolId);
+      processedPools.add(tipPoolId.toString());
     }
 
     const percentage = recipientGroup.gratuityConfig?.percentage || 0;
@@ -86,7 +88,6 @@ function calculateRecipientTipOuts(
 ): Map<string, number> {
   const totals = new Map<string, number>();
 
-  // Get all recipient groups
   const recipientGroups = staffGroups.filter(
     (g: any) => !g.gratuityConfig?.distributesGratuities
   );
@@ -94,14 +95,17 @@ function calculateRecipientTipOuts(
   recipientGroups.forEach((recipientGroup: any) => {
     let totalTipOut = 0;
     const recipientGroupId = recipientGroup._id.toString();
-    const tipPoolId = recipientGroup.gratuityConfig?.tipPoolId;
     
     // Find all distributor groups that tip out to this recipient
-    const distributorGroups = staffGroups.filter(
-      (g: any) =>
-        g.gratuityConfig?.distributesGratuities &&
-        g.gratuityConfig?.recipientGroupIds?.includes(recipientGroupId)
-    );
+    const distributorGroups = staffGroups.filter((g: any) => {
+      if (!g.gratuityConfig?.distributesGratuities) return false;
+      if (!g.gratuityConfig?.recipientGroupIds) return false;
+      
+      // Check if any recipientGroupId matches (comparing as strings)
+      return g.gratuityConfig.recipientGroupIds.some(
+        (id: any) => id.toString() === recipientGroupId
+      );
+    });
 
     distributorGroups.forEach((distributorGroup: any) => {
       const distributorEntries = entries.filter(

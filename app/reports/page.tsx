@@ -556,7 +556,7 @@ export default function ShiftReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Report Results ({reports.length} staff members)
+                  Report Results ({reports.filter(r => !r.isGroupHeader).length} staff members)
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
                   <Calendar className="inline w-4 h-4 mr-1" />

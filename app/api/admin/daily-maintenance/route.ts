@@ -48,15 +48,30 @@ function calculateTipOutForDistributor(
   let totalTipOut = 0;
   const totalTips = (entry.creditCardTips || 0) + (entry.cashTips || 0);
   const salesAmount = entry.salesAmount || 0;
+  const processedPools = new Set<string>(); // Track pools we've already counted
 
   distributorGroup.gratuityConfig.recipientGroupIds.forEach((recipientId: string) => {
     const recipientGroup = allGroups.find((g: any) => g._id.toString() === recipientId);
     if (!recipientGroup) return;
 
+    const tipPoolId = recipientGroup.gratuityConfig?.tipPoolId;
+    
+    // If this group is in a pool, check if we've already processed this pool
+    if (tipPoolId) {
+      if (processedPools.has(tipPoolId)) {
+        return; // Skip - already counted this pool
+      }
+      processedPools.add(tipPoolId);
+    }
+
     const percentage = recipientGroup.gratuityConfig?.percentage || 0;
+    const fixedAmount = recipientGroup.gratuityConfig?.fixedAmount || 0;
+    const distributionType = recipientGroup.gratuityConfig?.distributionType || 'percentage';
     const distributionBasis = distributorGroup.gratuityConfig?.distributionBasis || 'gratuities';
 
-    if (percentage > 0) {
+    if (distributionType === 'fixed') {
+      totalTipOut += fixedAmount;
+    } else if (percentage > 0) {
       const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
       totalTipOut += (baseAmount * percentage) / 100;
     }
@@ -79,7 +94,8 @@ function calculateRecipientTipOuts(
   recipientGroups.forEach((recipientGroup: any) => {
     let totalTipOut = 0;
     const recipientGroupId = recipientGroup._id.toString();
-
+    const tipPoolId = recipientGroup.gratuityConfig?.tipPoolId;
+    
     // Find all distributor groups that tip out to this recipient
     const distributorGroups = staffGroups.filter(
       (g: any) =>
@@ -93,13 +109,20 @@ function calculateRecipientTipOuts(
       );
 
       const percentage = recipientGroup.gratuityConfig?.percentage || 0;
+      const fixedAmount = recipientGroup.gratuityConfig?.fixedAmount || 0;
+      const distributionType = recipientGroup.gratuityConfig?.distributionType || 'percentage';
       const distributionBasis = distributorGroup.gratuityConfig?.distributionBasis || 'gratuities';
 
       distributorEntries.forEach((entry: any) => {
         const totalTips = (entry.creditCardTips || 0) + (entry.cashTips || 0);
         const salesAmount = entry.salesAmount || 0;
-        const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
-        totalTipOut += (baseAmount * percentage) / 100;
+
+        if (distributionType === 'fixed') {
+          totalTipOut += fixedAmount;
+        } else if (percentage > 0) {
+          const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
+          totalTipOut += (baseAmount * percentage) / 100;
+        }
       });
     });
 
@@ -237,41 +260,47 @@ export async function POST(request: NextRequest) {
 
     // Create today's shift if it doesn't exist
     const today = new Date().toISOString().split('T')[0];
-    console.log(`📅 Checking for today's shift (${today})...`);
+      console.log(`📅 Checking for today's shift (${today})...`);
 
-    const existingShift = await shiftsCollection.findOne({ date: today });
+      const existingShift = await shiftsCollection.findOne({ date: today });
 
-    let shiftCreated = false;
-    let entriesGenerated = 0;
+      let shiftCreated = false;
+      let shiftUpdated = false;
+      let entriesGenerated = 0;
 
-    if (!existingShift) {
       // Check if today is a holiday
       if (isHoliday(today)) {
-        console.log(`🎄 ${today} is a holiday - creating empty shift (business closed)`);
-        
-        const newShift = {
-          date: today,
-          type: 'FULL_DAY',
-          entries: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          status: 'open'
-        };
+        if (!existingShift) {
+          console.log(`🎄 ${today} is a holiday - creating empty shift (business closed)`);
+          
+          const newShift = {
+            date: today,
+            type: 'FULL_DAY',
+            entries: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            status: 'open'
+          };
 
-        await shiftsCollection.insertOne(newShift);
-        shiftCreated = true;
+          await shiftsCollection.insertOne(newShift);
+          shiftCreated = true;
+        } else {
+          console.log(`🎄 ${today} is a holiday - shift already exists`);
+        }
       } else {
-        // Fetch staff members and groups
+        // Not a holiday - need entries
         const staffMembers = await staffMembersCollection.find({}).toArray();
         const staffGroups = await staffGroupsCollection.find({}).toArray();
 
         console.log(`👥 Found ${staffMembers.length} staff members and ${staffGroups.length} groups`);
 
-        if (staffMembers.length > 0 && staffGroups.length > 0) {
-          // Generate realistic demo data
-          const entries = generateShiftEntries(staffMembers, staffGroups);
-          entriesGenerated = entries.length;
+      if (staffMembers.length > 0 && staffGroups.length > 0) {
+        // Generate realistic demo data
+        const entries = generateShiftEntries(staffMembers, staffGroups);
+        entriesGenerated = entries.length;
 
+        if (!existingShift) {
+          // Create new shift with entries
           const newShift = {
             date: today,
             type: 'FULL_DAY',
@@ -284,8 +313,25 @@ export async function POST(request: NextRequest) {
           await shiftsCollection.insertOne(newShift);
           console.log(`✅ Created shift for ${today} with ${entries.length} entries`);
           shiftCreated = true;
+        } else if (!existingShift.entries || existingShift.entries.length === 0) {
+          // Update existing empty shift with entries
+          await shiftsCollection.updateOne(
+            { date: today },
+            { 
+              $set: { 
+                entries: entries,
+                updatedAt: new Date()
+              } 
+            }
+          );
+          console.log(`✅ Updated empty shift for ${today} with ${entries.length} entries`);
+          shiftUpdated = true;
         } else {
-          // No staff/groups - create empty shift
+          console.log(`ℹ️  Shift for ${today} already exists with ${existingShift.entries.length} entries`);
+        }
+      } else {
+        // No staff/groups - create empty shift if none exists
+        if (!existingShift) {
           console.log(`⚠️ No staff members or groups found - creating empty shift`);
 
           const newShift = {
@@ -301,8 +347,6 @@ export async function POST(request: NextRequest) {
           shiftCreated = true;
         }
       }
-    } else {
-      console.log(`ℹ️  Shift for ${today} already exists with ${existingShift.entries?.length || 0} entries`);
     }
 
     // Get current stats
@@ -324,6 +368,7 @@ export async function POST(request: NextRequest) {
       newestDate: newestShift[0]?.date || null,
       deletedCount: deleteResult.deletedCount,
       shiftCreated,
+      shiftUpdated,
       entriesGenerated,
       isHoliday: isHoliday(today)
     };

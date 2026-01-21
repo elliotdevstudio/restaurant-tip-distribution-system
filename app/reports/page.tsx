@@ -22,6 +22,8 @@ interface ShiftReport {
   cashTips?: number;
   totalTips?: number;
   tipsReceived?: number;
+  tipOutAmount?: number;
+  netTips?: number;
   isDistributor?: boolean;
   shiftCount?: number;
   
@@ -235,7 +237,7 @@ export default function ShiftReportsPage() {
       return;
     }
 
-    const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips/Received'];
+    const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips', 'Tip Out', 'Net Tips'];
     const rows: any[] = [];
     
     reports.forEach(r => {
@@ -255,7 +257,9 @@ export default function ShiftReportsPage() {
           (r.salesAmount || 0).toFixed(2),
           (r.creditCardTips || 0).toFixed(2),
           (r.cashTips || 0).toFixed(2),
-          ((r.isDistributor ? r.totalTips : r.tipsReceived) || 0).toFixed(2)
+          ((r.isDistributor ? r.totalTips : r.tipsReceived) || 0).toFixed(2),
+          r.isDistributor ? (r.tipOutAmount || 0).toFixed(2) : '-',
+          r.isDistributor ? (r.netTips || 0).toFixed(2) : '-'
         ]);
       }
     });
@@ -600,6 +604,12 @@ export default function ShiftReportsPage() {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Total Tips
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Tip Out
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Net Tips
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -612,7 +622,7 @@ export default function ShiftReportsPage() {
                         className={report.isMainHeader ? "bg-gray-200 font-bold" : "bg-gray-100 font-semibold"}
                       >
                         <td 
-                          colSpan={viewType === 'all-groups' ? 8 : 7} 
+                          colSpan={viewType === 'all-groups' ? 10 : 9} 
                           className={`px-6 py-2 text-sm ${report.isMainHeader ? 'text-gray-900' : 'text-gray-700'}`}
                         >
                           {report.groupDescription}
@@ -653,6 +663,12 @@ export default function ShiftReportsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
                         ${((report.isDistributor ? report.totalTips : report.tipsReceived) || 0).toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600">
+                        {report.isDistributor ? `-$${(report.tipOutAmount || 0).toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
+                        {report.isDistributor ? `$${(report.netTips || 0).toFixed(2)}` : '-'}
                       </td>
                     </tr>
                   );

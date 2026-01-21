@@ -156,6 +156,8 @@ function processShiftData(
           cashTips: 0,
           totalTips: 0,
           tipsReceived: 0,
+          tipOutAmount: 0,
+          netTips: 0,
           isDistributor: entry.isDistributor || false,
           shiftCount: 0
         });
@@ -169,6 +171,9 @@ function processShiftData(
       staffData.cashTips += entry.cashTips || 0;
       staffData.totalTips += (entry.creditCardTips || 0) + (entry.cashTips || 0);
       staffData.tipsReceived += entry.tipsReceived || 0;
+      staffData.tipOutAmount += entry.tipOutAmount || 0;
+      staffData.netTips += entry.netTips || 0;
+
       
       // Only count as a shift if hours were worked
       if (entry.hoursWorked > 0) {

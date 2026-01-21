@@ -174,31 +174,29 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
   console.log(`📅 Creating/updating daily shift: ${type} on ${date.toISOString()}`);
   const db = await this.getDb();
   
-  // Normalize date to midnight UTC
-  const normalizedDate = new Date(date.setHours(0, 0, 0, 0));
+  // Format date as YYYY-MM-DD string (matching working documents)
+  const dateString = date.toISOString().split('T')[0];
   
+  console.log(`📅 Date string for storage: ${dateString}`);
+  console.log(`📋 Entries to save: ${entries?.length || 0}`);
+
+  // Clean up any old-format dates for this date (Date objects instead of strings)
+  await db.collection('daily_shifts').deleteMany({
+    date: { $type: 'date' },  // Any document where date is a Date object
+    type
+  });
   // UPSERT: Update if exists, create if not
   const result = await db.collection<DailyShiftDocument>('daily_shifts').findOneAndUpdate(
     { 
-      date: normalizedDate,
+      date: dateString,  // Query by string date
       type 
     },
     {
       $set: {
-        date: normalizedDate,
+        date: dateString,      // Store as string "YYYY-MM-DD"
         type,
-        status: 'draft',
-        staffData: entries || [],
-        groupSummaries: [],
-        shiftTotals: {
-          totalTipsCollected: 0,
-          totalDistributed: 0,
-          totalKeptByDistributors: 0,
-          totalReceivedByRecipients: 0,
-          totalHoursWorked: 0,
-          activeStaffCount: 0,
-          activeGroupCount: 0
-        },
+        status: 'open',        // Changed from 'draft' to 'open'
+        entries: entries || [], // Changed from "staffData" to "entries"
         updatedAt: new Date()
       },
       $setOnInsert: {
@@ -215,7 +213,7 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
     throw new Error('Failed to create/update daily shift');
   }
   
-  console.log(`✅ Shift updated successfully`);
+  console.log(`✅ Shift created/updated for ${dateString} with ${result.entries?.length || 0} entries`);
   return transformDailyShift(result);
 }
 
@@ -346,7 +344,7 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
     
     // Convert to UTC midnight and format as YYYY-MM-DD strings
     const utcStart = new Date(startDate);
-    utcStart.setUTCHours(0, 0, 0, 0);
+    utcStart.setUTCHours(0, 0, 0, 0);this.calculateTipOutForDistributor
     const startDateString = utcStart.toISOString().split('T')[0]; // YYYY-MM-DD
     
     const utcEnd = new Date(endDate);
@@ -384,7 +382,7 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
     startDate: Date,
     endDate: Date
   ): Promise<Array<{
-    date: Date;
+    date: Date | string;
     type: ShiftType;
     groupName: string;
     hoursWorked: number;
@@ -405,7 +403,7 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
     .toArray();
   
   const history = shifts.flatMap(shift => {
-    const staffEntry = shift.staffData.find(s => s.staffId.toString() === staffId);
+    const staffEntry = (shift.staffData || []) .find(s => s.staffId.toString() === staffId);
     if (!staffEntry) return [];
     
     return [{
@@ -452,7 +450,7 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
     let totalReceived = 0;
     
     shifts.forEach(shift => {
-      const groupSummary = shift.groupSummaries.find(g => g.groupId.toString() === groupId);
+      const groupSummary = (shift.groupSummaries || []).find(g => g.groupId.toString() === groupId);
       if (groupSummary) {
         totalHours += groupSummary.totalHours;
         totalCollected += groupSummary.totalCollected || 0;
@@ -841,35 +839,50 @@ static async createDailyShift(date: Date, type: ShiftType, entries?: any[]): Pro
    * Calculate tip out for a distributor (import from tipCalculations.ts)
    */
   private static calculateTipOutForDistributor(
-    salesAmount: number,
-    totalTips: number,
-    distributorGroup: any,
-    allGroups: any[]
-  ): number {
-    // This should match your existing calculation logic
-    // For now, simplified version:
-    let totalTipOut = 0;
-    
-    if (!distributorGroup.gratuityConfig.recipientGroupIds) {
-      return 0;
-    }
-    
-    distributorGroup.gratuityConfig.recipientGroupIds.forEach((recipientId: string) => {
-      const recipientGroup = allGroups.find(g => g.id === recipientId);
-      if (!recipientGroup) return;
+  salesAmount: number,
+  totalTips: number,
+  distributorGroup: any,
+  allGroups: any[]
+    ): number {
+      let totalTipOut = 0;
       
-      const distributionType = recipientGroup.gratuityConfig.distributionType || 'percentage';
-      const percentage = recipientGroup.gratuityConfig.percentage;
-      const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
-      
-      if (distributionType === 'percentage' && percentage) {
-        const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
-        totalTipOut += baseAmount * (percentage / 100);
+      if (!distributorGroup.gratuityConfig?.recipientGroupIds) {
+        return 0;
       }
-    });
-    
-    return parseFloat(totalTipOut.toFixed(2));
-  }
+      
+      const processedPools = new Set<string>(); // Track pools we've already counted
+      
+      distributorGroup.gratuityConfig.recipientGroupIds.forEach((recipientId: string) => {
+        const recipientGroup = allGroups.find((g: any) => 
+          g._id?.toString() === recipientId || g.id === recipientId
+        );
+        if (!recipientGroup) return;
+        
+        const tipPoolId = recipientGroup.gratuityConfig?.tipPoolId;
+        
+        // If this group is in a pool, check if we've already processed this pool
+        if (tipPoolId) {
+          if (processedPools.has(tipPoolId)) {
+            return; // Skip - already counted this pool
+          }
+          processedPools.add(tipPoolId);
+        }
+        
+        const distributionType = recipientGroup.gratuityConfig?.distributionType || 'percentage';
+        const percentage = recipientGroup.gratuityConfig?.percentage;
+        const fixedAmount = recipientGroup.gratuityConfig?.fixedAmount;
+        const distributionBasis = distributorGroup.gratuityConfig?.distributionBasis || 'gratuities';
+        
+        if (distributionType === 'fixed') {
+          totalTipOut += fixedAmount || 0;
+        } else if (distributionType === 'percentage' && percentage) {
+          const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
+          totalTipOut += baseAmount * (percentage / 100);
+        }
+      });
+      
+      return parseFloat(totalTipOut.toFixed(2));
+    }
   
   /**
    * Daily maintenance: Remove shifts older than 90 days and create today's shift

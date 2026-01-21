@@ -46,18 +46,18 @@ export interface GroupShiftSummary {
 // Complete daily shift document
 export interface DailyShiftDocument {
   _id?: ObjectId;
-  date: Date;  // Stored as midnight UTC for the day
+  date: Date | string;  // Stored as midnight UTC for the day
   type: ShiftType; // 'AM' or 'PM' or 'FULL_DAY'
-  status: 'draft' | 'active' | 'closed';
+  status: 'draft' | 'active' | 'closed' | 'open';
   
   // All staff data for this shift
-  staffData: StaffShiftData[];
-  
+  staffData?: StaffShiftData[];
+  entries?: any[];
   // Group summaries for this shift
-  groupSummaries: GroupShiftSummary[];
+  groupSummaries?: GroupShiftSummary[];
   
   // Overall totals
-  shiftTotals: {
+  shiftTotals?: {
     totalTipsCollected: number;
     totalDistributed: number;
     totalKeptByDistributors: number;
@@ -123,46 +123,65 @@ export interface DailyShiftWithId {
   createdBy?: string;
 }
 
-export function transformDailyShift(doc: DailyShiftDocument): DailyShiftWithId {
+export function transformDailyShift(doc: any): DailyShiftWithId {
+  // Handle both old schema (staffData) and new schema (entries)
+  const entries = doc.entries || doc.staffData || [];
+  
   return {
-    id: doc._id!.toString(),
+    id: doc._id?.toString() || '',
     date: doc.date,
     type: doc.type,
-    status: doc.status,
-    staffData: doc.staffData.map(staff => ({
-      staffId: staff.staffId.toString(),
-      firstName: staff.firstName,
-      lastName: staff.lastName,
-      groupId: staff.groupId.toString(),
+    status: doc.status || 'open',
+    staffData: entries.map((staff: any) => ({
+      // Handle both ObjectId and string formats
+      staffId: staff.staffId?.toString?.() || staff.staffId,
+      firstName: staff.firstName || staff.staffName?.split(' ')[0] || '',
+      lastName: staff.lastName || staff.staffName?.split(' ').slice(1).join(' ') || '',
+      groupId: staff.groupId?.toString?.() || staff.groupId,
       groupName: staff.groupName,
-      hoursWorked: staff.hoursWorked,
+      hoursWorked: staff.hoursWorked || 0,
       salesAmount: staff.salesAmount,
       creditCardTips: staff.creditCardTips,
       cashTips: staff.cashTips,
-      totalTipsCollected: staff.totalTipsCollected,
-      contributionAmount: staff.contributionAmount,
-      netTipAmount: staff.netTipAmount,
-      receivedAmount: staff.receivedAmount,
-      sourceGroupIds: staff.sourceGroupIds?.map(id => id.toString())
+      // Map between old and new field names
+      totalTipsCollected: staff.totalTipsCollected || staff.totalTips,
+      contributionAmount: staff.contributionAmount || staff.tipOutAmount,
+      netTipAmount: staff.netTipAmount || staff.netTips,
+      receivedAmount: staff.receivedAmount || staff.tipsReceived,
+      sourceGroupIds: staff.sourceGroupIds?.map((id: any) => id?.toString?.() || id),
+      // Preserve new schema fields
+      isDistributor: staff.isDistributor,
+      staffName: staff.staffName,
+      totalTips: staff.totalTips,
+      tipOutAmount: staff.tipOutAmount,
+      netTips: staff.netTips,
+      tipsReceived: staff.tipsReceived
     })),
-    groupSummaries: doc.groupSummaries.map(group => ({
-      groupId: group.groupId.toString(),
+    groupSummaries: (doc.groupSummaries || []).map((group: any) => ({
+      groupId: group.groupId?.toString?.() || group.groupId,
       groupName: group.groupName,
       distributesGratuities: group.distributesGratuities,
       contributionSource: group.contributionSource,
-      activeStaffIds: group.activeStaffIds.map(id => id.toString()),
-      totalHours: group.totalHours,
+      activeStaffIds: (group.activeStaffIds || []).map((id: any) => id?.toString?.() || id),
+      totalHours: group.totalHours || 0,
       totalCollected: group.totalCollected,
       totalDistributed: group.totalDistributed,
       totalKept: group.totalKept,
       totalReceived: group.totalReceived,
       averageHourlyRate: group.averageHourlyRate
     })),
-    shiftTotals: doc.shiftTotals,
+    shiftTotals: doc.shiftTotals || {
+      totalTipsCollected: 0,
+      totalDistributed: 0,
+      totalKeptByDistributors: 0,
+      totalReceivedByRecipients: 0,
+      totalHoursWorked: 0,
+      activeStaffCount: 0,
+      activeGroupCount: 0
+    },
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     closedAt: doc.closedAt,
     createdBy: doc.createdBy
   };
 }
-

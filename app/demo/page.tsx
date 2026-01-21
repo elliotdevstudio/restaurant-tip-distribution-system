@@ -210,38 +210,49 @@ export default function DemoPage() {
   };
 
   const calculateTipOutForDistributor = useCallback((
-    distributorEntry: DemoEntry,
-    distributorGroup: AnyStaffGroup
-  ): number => {
-    if (!distributorGroup.gratuityConfig.recipientGroupIds || 
-        distributorGroup.gratuityConfig.recipientGroupIds.length === 0) {
-      return 0;
-    }
-
-    const totalTips = (distributorEntry.creditCardTips || 0) + (distributorEntry.cashTips || 0);
-    const salesAmount = distributorEntry.salesAmount || 0;
-    const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
-
-    let totalTipOut = 0;
-    
-    distributorGroup.gratuityConfig.recipientGroupIds.forEach(recipientId => {
-      const recipientGroup = staffGroups.find(g => g.id === recipientId);
-      if (!recipientGroup) return;
-      
-      const distributionType = recipientGroup.gratuityConfig.distributionType || 'percentage';
-      const percentage = recipientGroup.gratuityConfig.percentage;
-      const fixedAmount = recipientGroup.gratuityConfig.fixedAmount;
-      
-      if (distributionType === 'fixed') {
-        totalTipOut += fixedAmount || 0;
-      } else if (distributionType === 'percentage' && percentage) {
-        const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
-        totalTipOut += (baseAmount * percentage) / 100;
+  distributorEntry: DemoEntry,
+  distributorGroup: AnyStaffGroup
+    ): number => {
+      if (!distributorGroup.gratuityConfig.recipientGroupIds || 
+          distributorGroup.gratuityConfig.recipientGroupIds.length === 0) {
+        return 0;
       }
-    });
-    
-    return parseFloat(totalTipOut.toFixed(2));
-  }, [staffGroups]);
+
+      const totalTips = (distributorEntry.creditCardTips || 0) + (distributorEntry.cashTips || 0);
+      const salesAmount = distributorEntry.salesAmount || 0;
+      const distributionBasis = distributorGroup.gratuityConfig.distributionBasis || 'gratuities';
+
+      let totalTipOut = 0;
+      const processedPools = new Set<string>(); // Track pools we've already counted
+      
+      distributorGroup.gratuityConfig.recipientGroupIds.forEach(recipientId => {
+        const recipientGroup = staffGroups.find(g => g.id === recipientId);
+        if (!recipientGroup) return;
+        
+        const tipPoolId = recipientGroup.gratuityConfig.tipPoolId;
+        
+        // If this group is in a pool, check if we've already processed this pool
+        if (tipPoolId) {
+          if (processedPools.has(tipPoolId)) {
+            return; // Skip - already counted this pool
+          }
+          processedPools.add(tipPoolId);
+        }
+        
+        const distributionType = recipientGroup.gratuityConfig.distributionType || 'percentage';
+        const percentage = recipientGroup.gratuityConfig.percentage;
+        const fixedAmount = recipientGroup.gratuityConfig.fixedAmount;
+        
+        if (distributionType === 'fixed') {
+          totalTipOut += fixedAmount || 0;
+        } else if (distributionType === 'percentage' && percentage) {
+          const baseAmount = distributionBasis === 'sales' ? salesAmount : totalTips;
+          totalTipOut += (baseAmount * percentage) / 100;
+        }
+      });
+      
+      return parseFloat(totalTipOut.toFixed(2));
+    }, [staffGroups]);
 
   const recipientGroupTipOuts = useMemo(() => {
     const totals = new Map<string, number>();
@@ -450,48 +461,68 @@ export default function DemoPage() {
     setDemoEntries([]);
   };
 
-  const handleSaveShift = async () => {
-  if (demoEntries.length === 0) {
-    alert('Please generate data first');
-    return;
-  }
-
-  try {
-    setIsLoading(true);
-    
-    // Save shift with demo entries
-    const shiftResponse = await fetch('/api/daily-shifts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        date: selectedDate,
-        type: 'FULL_DAY',
-        entries: demoEntries
-      })
-    });
-
-    const shiftResult = await shiftResponse.json();
-    
-    if (!shiftResult.success) {
-      alert(`Failed to save shift: ${shiftResult.message}`);
-      setIsLoading(false);
+    const handleSaveShift = async () => {
+    if (demoEntries.length === 0) {
+      alert('Please generate data first');
       return;
     }
 
-    alert('✅ Shift saved successfully! You can now view it in Shift Reports.');
-    
-    // Optionally clear demo data after successful save
-    // sessionStorage.removeItem(DEMO_DATA_KEY);
-    // sessionStorage.removeItem(DEMO_DATE_KEY);
-    // setDemoEntries([]);
-    
-  } catch (error) {
-    console.error('Failed to save shift:', error);
-    alert('Failed to save shift. Please try again.');
-  } finally {
-    setIsLoading(false);
-  }
-};
+    try {
+      setIsLoading(true);
+      
+      // Calculate tipsReceived for recipients before saving
+      const entriesWithTipsReceived = demoEntries.map(entry => {
+        if (entry.isDistributor) {
+          // Distributors already have all their data
+          return entry;
+        }
+        
+        // For recipients, calculate tipsReceived
+        const groupTipOut = recipientGroupTipOuts.get(entry.groupId) || 0;
+        const groupHours = groupHourTotals.get(entry.groupId) || 0;
+        
+        let tipsReceived = 0;
+        if (groupHours > 0) {
+          tipsReceived = parseFloat(
+            ((entry.hoursWorked / groupHours) * groupTipOut).toFixed(2)
+          );
+        }
+        
+        return {
+          ...entry,
+          tipsReceived
+        };
+      });
+      
+      // Save shift with complete entries
+      const shiftResponse = await fetch('/api/daily-shifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: selectedDate,
+          type: 'FULL_DAY',
+          entries: entriesWithTipsReceived
+        })
+      });
+
+      const shiftResult = await shiftResponse.json();
+      
+      if (!shiftResult.success) {
+        alert(`Failed to save shift: ${shiftResult.message}`);
+        setIsLoading(false);
+        return;
+      }
+
+      alert('✅ Shift saved successfully! You can now view it in Shift Reports.');
+      
+    } catch (error) {
+      console.error('Failed to save shift:', error);
+      alert('Failed to save shift. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   const getTotalTips = (entry: DemoEntry) => {
     return (entry.creditCardTips || 0) + (entry.cashTips || 0);

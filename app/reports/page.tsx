@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { Calendar, Download, TrendingUp, Users, DollarSign, Clock } from 'lucide-react';
@@ -53,6 +53,7 @@ export default function ShiftReportsPage() {
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [selectedGroup, setSelectedGroup] = useState('');
   const [selectedMember, setSelectedMember] = useState('');
+  const [sortByLastName, setSortByLastName] = useState(true); // default to last name
   const [reports, setReports] = useState<ShiftReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string } | null>(null);
@@ -231,10 +232,74 @@ export default function ShiftReportsPage() {
     }
   };
 
+  const sortedReports = useMemo(() => {
+  if (reports.length === 0) return [];
+  
+  // Separate headers and staff entries
+  const result: typeof reports = [];
+  let currentGroup: typeof reports = [];
+  
+  reports.forEach(report => {
+    if (report.isGroupHeader) {
+      // Sort and flush the previous group's staff
+      if (currentGroup.length > 0) {
+        currentGroup.sort((a, b) => {
+          const aName = a.staffName || '';
+          const bName = b.staffName || '';
+          
+          // Names are formatted as "LastName, FirstName"
+          const aParts = aName.split(', ');
+          const bParts = bName.split(', ');
+          const aLastName = aParts[0] || '';
+          const bLastName = bParts[0] || '';
+          const aFirstName = aParts[1] || '';
+          const bFirstName = bParts[1] || '';
+          
+          if (sortByLastName) {
+            return aLastName.localeCompare(bLastName);
+          } else {
+            return aFirstName.localeCompare(bFirstName);
+          }
+        });
+        result.push(...currentGroup);
+        currentGroup = [];
+      }
+      result.push(report);
+    } else {
+      currentGroup.push(report);
+    }
+  });
+  
+  // Don't forget the last group
+  if (currentGroup.length > 0) {
+    currentGroup.sort((a, b) => {
+      const aName = a.staffName || '';
+      const bName = b.staffName || '';
+      
+      // Names are formatted as "LastName, FirstName"
+      const aParts = aName.split(', ');
+      const bParts = bName.split(', ');
+      const aLastName = aParts[0] || '';
+      const bLastName = bParts[0] || '';
+      const aFirstName = aParts[1] || '';
+      const bFirstName = bParts[1] || '';
+      
+      if (sortByLastName) {
+        return aLastName.localeCompare(bLastName);
+      } else {
+        return aFirstName.localeCompare(bFirstName);
+      }
+    });
+    result.push(...currentGroup);
+  }
+  
+  return result;
+}, [reports, sortByLastName]);
+    
   const handleDownloadCSV = () => {
     if (reports.length === 0) {
-      alert('No data to export');
-      return;
+        alert('No data to export');
+        return;
     }
 
     const headers = ['Staff Name', 'Group', 'Shifts', 'Hours', 'Sales', 'CC Tips', 'Cash Tips', 'Total Tips', 'Tip Out', 'Net Tips'];
@@ -556,7 +621,7 @@ export default function ShiftReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Report Results ({reports.filter(r => !r.isGroupHeader).length} staff members)
+                  Report Results ({sortedReports.filter(r => !r.isGroupHeader).length} staff members)
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
                   <Calendar className="inline w-4 h-4 mr-1" />
@@ -576,8 +641,18 @@ export default function ShiftReportsPage() {
                 <tr>
                   {viewType !== 'single-member' && (
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      <Users className="inline w-4 h-4 mr-1" />
-                      Staff
+                      <div className="flex items-center gap-2">
+                        <Users className="inline w-4 h-4" />
+                        Staff
+                        <button
+                          onClick={() => setSortByLastName(!sortByLastName)}
+                          className="ml-2 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-50 text-gray-700 rounded-md border border-gray-300 shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:shadow-[0_1px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-[1px] transition-all"
+                          title={sortByLastName ? "Sorting by last name" : "Sorting by first name"}
+                        >
+                          SORT
+                          {/* {sortByLastName ? 'Last' : 'First'} */}
+                        </button>
+                      </div>
                     </th>
                   )}
                   {viewType === 'all-groups' && (
@@ -615,7 +690,7 @@ export default function ShiftReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {reports.map((report, index) => {
+                {sortedReports.map((report, index) => {
                   // Check if this is a group header
                   if (report.isGroupHeader) {
                     return (
@@ -638,7 +713,17 @@ export default function ShiftReportsPage() {
                     <tr key={`staff-${report.staffId}-${index}`} className="hover:bg-blue-50 transition-colors">
                       {viewType !== 'single-member' && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {report.staffName}
+                          {(() => {
+                            const nameParts = report.staffName?.split(', ') || [];
+                            const lastName = nameParts[0] || '';
+                            const firstName = nameParts[1] || '';
+                            
+                            if (sortByLastName) {
+                              return `${lastName}, ${firstName}`;
+                            } else {
+                              return `${firstName} ${lastName}`;
+                            }
+                          })()}
                         </td>
                       )}
                       {viewType === 'all-groups' && (

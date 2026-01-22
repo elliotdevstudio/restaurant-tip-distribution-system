@@ -144,10 +144,16 @@ function processShiftData(
       const key = entry.staffId;
 
       if (!aggregatedData.has(key)) {
+        // Format name as "LastName, FirstName"
+        const nameParts = entry.staffName?.split(' ') || [];
+        const lastName = nameParts.slice(-1)[0] || '';
+        const firstName = nameParts.slice(0, -1).join(' ') || '';
+        const formattedName = lastName ? `${lastName}, ${firstName}` : entry.staffName;
+
         // Initialize new staff member entry
         aggregatedData.set(key, {
           staffId: entry.staffId,
-          staffName: entry.staffName,
+          staffName: formattedName,
           groupId: entry.groupId,
           groupName: entry.groupName,
           hoursWorked: 0,
@@ -268,7 +274,11 @@ function processShiftData(
 
       // Add staff members (sorted by name)
       members
-        .sort((a, b) => a.staffName.localeCompare(b.staffName))
+        .sort((a, b) => {
+          const aLastName = a.staffName?.split(' ').slice(-1)[0] || '';
+          const bLastName = b.staffName?.split(' ').slice(-1)[0] || '';
+          return aLastName.localeCompare(bLastName);
+        })
         .forEach(member => reportsWithHeaders.push(member));
     });
 

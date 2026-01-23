@@ -125,7 +125,7 @@ export default function DashboardPage() {
     {
       title: 'Shift Reports',
       description: 'View historical shift data, analyze tip distribution patterns, and generate reports.',
-      href: '/shifts',
+      href: '/reports',
       icon: <FileText className="w-6 h-6 text-orange-600" />,
       colorClass: 'bg-orange-50'
     }

@@ -660,16 +660,13 @@ export default function ShiftReportsPage() {
                       Group
                     </th>
                   )}
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <Calendar className="inline w-4 h-4 mr-1" />
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">                   
                     Shifts
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <Clock className="inline w-4 h-4 mr-1" />
                     Hours
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <DollarSign className="inline w-4 h-4 mr-1" />
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">                 
                     Sales
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">

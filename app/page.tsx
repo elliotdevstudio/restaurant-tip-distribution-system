@@ -9,7 +9,7 @@ import {
   FileText,
   Clock
 } from 'lucide-react';
-import WelcomeModal from './components/staff/WelcomeModal';
+// import WelcomeModal from './components/staff/WelcomeModal';
 
 interface DashboardCardProps {
   title: string;
@@ -133,7 +133,7 @@ export default function DashboardPage() {
 
   return (
   <>
-    <WelcomeModal />
+    {/* <WelcomeModal /> */}
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
